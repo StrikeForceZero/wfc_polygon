@@ -5,3 +5,4 @@ edition = "2021"
 authors = ["Brett Striker <strikeforcezero@gmail.com"]
 
 [dependencies]
+rand = "0.8"
