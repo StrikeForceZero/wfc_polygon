@@ -4,6 +4,9 @@ version = "0.0.0"
 edition = "2021"
 authors = ["Brett Striker <strikeforcezero@gmail.com"]
 
+[dev-dependencies]
+anyhow = "1"
+
 [dependencies]
 rand = "0.8"
 thiserror = "1"
