@@ -1,5 +1,5 @@
 use std::cmp::Reverse;
-use std::collections::{BTreeMap, BinaryHeap, HashSet, VecDeque};
+use std::collections::{BinaryHeap, BTreeMap, HashSet, VecDeque};
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
 
@@ -413,6 +413,40 @@ where
         self.entropy_queue.push(Reverse((entropy, x, y)));
     }
 
+    pub fn get_invalids(
+        &self,
+        allow_none: bool,
+        polygon: Polygon,
+    ) -> Result<HashSet<(usize, usize)>, GridError> {
+        let mut invalids = HashSet::new();
+        for (ix, cell) in self.cells.iter().enumerate() {
+            let (x, y) = self.index_to_xy(ix);
+            let Some(&tile) = cell.as_ref() else {
+                if !allow_none {
+                    invalids.insert((x, y));
+                }
+                continue;
+            };
+            for (side, nix) in self.neighbor_indexes(x, y, polygon) {
+                let Some(nix) = nix else {
+                    continue;
+                };
+                let Some(neighbor_tile) = self.get_by_index(nix) else {
+                    // could be out of bounds, so we skip checking for none
+                    // if this was in bounds and none, it will still be caught eventually in the loop
+                    continue;
+                };
+                let Some(compatible) = self.compatibility.get(tile, side)? else {
+                    unreachable!("bad compatibility map?")
+                };
+                if !compatible.contains(&neighbor_tile) {
+                    invalids.insert((x, y));
+                }
+            }
+        }
+        Ok(invalids)
+    }
+
     pub fn is_valid(&self, allow_none: bool, polygon: Polygon) -> Result<bool, GridError> {
         for (ix, cell) in self.cells.iter().enumerate() {
             let Some(&tile) = cell.as_ref() else {
@@ -466,7 +500,7 @@ where
                     continue;
                 };
                 if let Some(compatible) = self.compatibility.get(tile, side)? {
-                    self.possibilities[nix].retain(|p| compatible.contains(p))
+                    self.possibilities[nix].retain(|p| compatible.contains(p));
                 } else {
                     unreachable!("bad compatibility map?")
                 }
@@ -492,8 +526,13 @@ where
         self.propagate_constraints(polygon);
 
         while let Some(Reverse((_, x, y))) = self.entropy_queue.pop() {
-            let index = y * self.width + x;
-            if self.possibilities[index].len() > 1 {
+            let index = self.xy_to_index(x, y);
+            if self.possibilities[index].len() > 1
+                || self.possibilities[index].len() == 1 && self.get_by_index(index).is_none()
+            {
+                if self.possibilities[index].len() == 1 && self.get_by_index(index).is_none() {
+                    println!("force filling: ({x},{y})")
+                }
                 if let Some(&tile) = self.possibilities[index]
                     .iter()
                     .cloned()
@@ -517,6 +556,9 @@ where
                 }
             }
         }
+
+        // Ensure propagation queue is empty and constraints are fully propagated
+        self.propagate_constraints(polygon);
 
         // Check if any cells are still None
         for y in 0..self.height {
