@@ -409,7 +409,7 @@ where
             let Some(&tile) = cell.as_ref() else {
                 continue;
             };
-            self.possibilities[ix].clear();
+            self.possibilities[ix] = HashSet::from([tile]);
             let (x, y) = self.index_to_xy(ix);
             for (side, nix) in self.neighbor_indexes(x, y, polygon) {
                 let Some(nix) = nix else {
