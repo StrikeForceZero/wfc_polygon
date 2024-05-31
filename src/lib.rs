@@ -1,4 +1,5 @@
-use std::collections::{BTreeMap, HashSet};
+use std::cmp::Reverse;
+use std::collections::{BinaryHeap, BTreeMap, HashSet, VecDeque};
 use std::fmt::{Debug, Display, Formatter};
 use std::hash::Hash;
 
@@ -165,6 +166,8 @@ pub struct Grid<T> {
     cells: Vec<Option<T>>,
     possibilities: Vec<HashSet<T>>,
     compatibility: CompatibilityMap<T>,
+    propagation_queue: VecDeque<(usize, usize)>,
+    entropy_queue: BinaryHeap<Reverse<(usize, usize, usize)>>,
 }
 
 impl<T> Grid<T>
@@ -172,7 +175,19 @@ where
     T: Tile<T>,
 {
     pub fn new(width: usize, height: usize, compatibility: CompatibilityMap<T>) -> Self {
-        let possibilities = vec![T::all().into_iter().collect(); width * height];
+        let possibilities: Vec<HashSet<T>> = vec![T::all().into_iter().collect(); width * height];
+        let mut entropy_queue = BinaryHeap::new();
+        let mut propagation_queue = VecDeque::new();
+
+        for y in 0..height {
+            for x in 0..width {
+                let index = y * width + x;
+                entropy_queue.push(Reverse((possibilities[index].len(), x, y)));
+                if possibilities[index].len() == 1 {
+                    propagation_queue.push_back((x, y));
+                }
+            }
+        }
 
         Self {
             width,
@@ -180,6 +195,8 @@ where
             cells: vec![None; width * height],
             compatibility,
             possibilities,
+            propagation_queue,
+            entropy_queue,
         }
     }
 
@@ -363,6 +380,34 @@ where
             .collect()
     }
 
+    pub fn propagate_constraints(&mut self, polygon: Polygon) {
+        while let Some((x, y)) = self.propagation_queue.pop_front() {
+            let Some(tile) = self.get(x, y) else {
+                continue;
+            };
+            for (side, neighbor_index_opt) in self.neighbor_indexes(x, y, polygon) {
+                if let Some(neighbor_index) = neighbor_index_opt {
+                    if let Some(allowed_tiles) = self.compatibility.get(tile, side).unwrap() {
+                        let possibilities = &mut self.possibilities[neighbor_index];
+                        let old_len = possibilities.len();
+                        possibilities.retain(|t| allowed_tiles.contains(t));
+                        if possibilities.len() < old_len {
+                            self.propagation_queue
+                                .push_back(self.index_to_xy(neighbor_index));
+                            self.update_entropy(x, y);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    pub fn update_entropy(&mut self, x: usize, y: usize) {
+        let index = self.xy_to_index(x, y);
+        let entropy = self.possibilities[index].len();
+        self.entropy_queue.push(Reverse((entropy, x, y)));
+    }
+
     pub fn is_valid(&self, allow_none: bool, polygon: Polygon) -> Result<bool, GridError> {
         for (ix, cell) in self.cells.iter().enumerate() {
             let Some(&tile) = cell.as_ref() else {
@@ -423,31 +468,45 @@ where
             }
         }
 
-        while let Some((index, _)) = self
-            .possibilities
-            .iter()
-            .enumerate()
-            .filter(|(_, set)| set.len() > 1)
-            .min_by_key(|(_, set)| set.len())
-        {
-            let x = index % self.width;
-            let y = index / self.width;
+        // Initialize possibilities
+        self.entropy_queue.clear();
+        self.propagation_queue.clear();
 
-            if let Some(&tile) = self.possibilities[index]
-                .iter()
-                .cloned()
-                .collect::<Vec<_>>()
-                .choose(&mut rng)
-            {
-                self.set(x, y, tile);
-                self.possibilities[index] = HashSet::new();
-                self.possibilities[index].insert(tile);
+        // Reinitialize the entropy queue and propagation queue
+        for y in 0..self.height {
+            for x in 0..self.width {
+                let index = y * self.width + x;
+                self.update_entropy(x, y);
+                if self.possibilities[index].len() == 1 {
+                    self.propagation_queue.push_back((x, y));
+                }
+            }
+        }
 
-                for (side, neighbor_index_opt) in self.neighbor_indexes(x, y, polygon) {
-                    if let Some(neighbor_index) = neighbor_index_opt {
-                        if let Some(allowed_tiles) = self.compatibility.get(tile, side)? {
-                            self.possibilities[neighbor_index]
-                                .retain(|t| allowed_tiles.contains(t));
+        // Propagate constraints for initially determined tiles
+        self.propagate_constraints(polygon);
+
+        while let Some(Reverse((_, x, y))) = self.entropy_queue.pop() {
+            let index = y * self.width + x;
+            if self.possibilities[index].len() > 1 {
+                if let Some(&tile) = self.possibilities[index]
+                    .iter()
+                    .cloned()
+                    .collect::<Vec<_>>()
+                    .choose(&mut rng)
+                {
+                    self.set(x, y, tile);
+                    // set the possibilities to the tile we just set it as
+                    self.possibilities[index] = HashSet::from([tile]);
+
+                    self.propagation_queue.push_back((x, y));
+                    self.propagate_constraints(polygon);
+
+                    // Update entropy for neighbors
+                    for (_, neighbor_index_opt) in self.neighbor_indexes(x, y, polygon) {
+                        if let Some(neighbor_index) = neighbor_index_opt {
+                            let (nx, ny) = self.index_to_xy(neighbor_index);
+                            self.update_entropy(nx, ny);
                         }
                     }
                 }
