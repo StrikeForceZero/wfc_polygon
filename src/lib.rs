@@ -154,6 +154,8 @@ where
 pub enum GridError {
     #[error("GridError: {0:?}")]
     CompatibilityMapError(#[from] CompatibilityMapError),
+    #[error("Grid has compatibility violation")]
+    CompatibilityViolation,
 }
 
 #[derive(Debug, Clone)]
@@ -354,10 +356,46 @@ where
             .collect()
     }
 
+    pub fn is_valid(&self, allow_none: bool, polygon: Polygon) -> Result<bool, GridError> {
+        for (ix, cell) in self.cells.iter().enumerate() {
+            let Some(&tile) = cell.as_ref() else {
+                if allow_none {
+                    continue;
+                } else {
+                    return Ok(false);
+                }
+            };
+            let (x, y) = self.index_to_xy(ix);
+            for (side, nix) in self.neighbor_indexes(x, y, polygon) {
+                let Some(nix) = nix else {
+                    continue;
+                };
+                let Some(neighbor_tile) = self.get_by_index(nix) else {
+                    // could be out of bounds, so we skip checking for none
+                    // if this was in bounds and none, it will still be caught eventually in the loop
+                    continue;
+                };
+                let Some(compatible) = self.compatibility.get(tile, side)? else {
+                    unreachable!("bad compatibility map?")
+                };
+                if !compatible.contains(&neighbor_tile) {
+                    return Ok(false);
+                }
+            }
+        }
+        Ok(true)
+    }
+
+    pub fn collapse_and_validate(&mut self, polygon: Polygon) -> Result<bool, GridError> {
+        let res = self.collapse(polygon);
+        if !self.is_valid(true, polygon)? {
+            return Err(GridError::CompatibilityViolation);
+        }
+        return res;
+    }
+
     pub fn collapse(&mut self, polygon: Polygon) -> Result<bool, GridError> {
         let mut rng = thread_rng();
-
-        // TODO: validate existing cells
 
         // Re-load possibilities each iteration to account for external changes
         for (ix, cell) in self.cells.iter().enumerate() {
