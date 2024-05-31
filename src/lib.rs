@@ -161,6 +161,7 @@ pub struct Grid<T> {
     width: usize,
     height: usize,
     cells: Vec<Option<T>>,
+    possibilities: Vec<HashSet<T>>,
     compatibility: CompatibilityMap<T>,
 }
 
@@ -169,11 +170,14 @@ where
     T: Tile<T>,
 {
     pub fn new(width: usize, height: usize, compatibility: CompatibilityMap<T>) -> Self {
+        let possibilities = vec![T::all().into_iter().collect(); width * height];
+
         Self {
             width,
             height,
             cells: vec![None; width * height],
             compatibility,
+            possibilities,
         }
     }
 
@@ -352,8 +356,6 @@ where
 
     pub fn collapse(&mut self, polygon: Polygon) -> Result<bool, GridError> {
         let mut rng = thread_rng();
-        let mut possibilities: Vec<HashSet<T>> =
-            vec![T::all().into_iter().collect(); self.width * self.height];
 
         // TODO: validate existing cells
 
@@ -362,21 +364,22 @@ where
             let Some(tile) = cell else {
                 continue;
             };
-            possibilities[ix].clear();
+            self.possibilities[ix].clear();
             let (x, y) = self.index_to_xy(ix);
             for (side, nix) in self.neighbor_indexes(x, y, polygon) {
                 let Some(nix) = nix else {
                     continue;
                 };
                 if let Some(compatible) = self.compatibility.get(*tile, side)? {
-                    possibilities[nix].retain(|p| compatible.contains(p))
+                    self.possibilities[nix].retain(|p| compatible.contains(p))
                 } else {
                     unreachable!("bad compatibility map?")
                 }
             }
         }
 
-        while let Some((index, _)) = possibilities
+        while let Some((index, _)) = self
+            .possibilities
             .iter()
             .enumerate()
             .filter(|(_, set)| set.len() > 1)
@@ -385,20 +388,21 @@ where
             let x = index % self.width;
             let y = index / self.width;
 
-            if let Some(&tile) = possibilities[index]
+            if let Some(&tile) = self.possibilities[index]
                 .iter()
                 .cloned()
                 .collect::<Vec<_>>()
                 .choose(&mut rng)
             {
                 self.set(x, y, tile);
-                possibilities[index] = HashSet::new();
-                possibilities[index].insert(tile);
+                self.possibilities[index] = HashSet::new();
+                self.possibilities[index].insert(tile);
 
                 for (side, neighbor_index_opt) in self.neighbor_indexes(x, y, polygon) {
                     if let Some(neighbor_index) = neighbor_index_opt {
                         if let Some(allowed_tiles) = self.compatibility.get(tile, side)? {
-                            possibilities[neighbor_index].retain(|t| allowed_tiles.contains(t));
+                            self.possibilities[neighbor_index]
+                                .retain(|t| allowed_tiles.contains(t));
                         }
                     }
                 }
