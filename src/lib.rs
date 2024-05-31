@@ -352,6 +352,25 @@ where
         let mut possibilities: Vec<HashSet<T>> =
             vec![T::all().into_iter().collect(); self.width * self.height];
 
+        // Re-load possibilities each iteration to account for external changes
+        for (ix, cell) in self.cells.iter().enumerate() {
+            let Some(tile) = cell else {
+                continue;
+            };
+            possibilities[ix].clear();
+            let (x, y) = self.index_to_xy(ix);
+            for (side, nix) in self.neighbor_indexes(x, y, polygon) {
+                let Some(nix) = nix else {
+                    continue;
+                };
+                if let Some(compatible) = self.compatibility.get(*tile, side)? {
+                    possibilities[nix].retain(|p| compatible.contains(p))
+                } else {
+                    unreachable!("bad compatibility map?")
+                }
+            }
+        }
+
         while let Some((index, _)) = possibilities
             .iter()
             .enumerate()
