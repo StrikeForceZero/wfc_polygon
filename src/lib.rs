@@ -406,7 +406,7 @@ where
 
         // Re-load possibilities each iteration to account for external changes
         for (ix, cell) in self.cells.iter().enumerate() {
-            let Some(tile) = cell else {
+            let Some(&tile) = cell.as_ref() else {
                 continue;
             };
             self.possibilities[ix].clear();
@@ -415,7 +415,7 @@ where
                 let Some(nix) = nix else {
                     continue;
                 };
-                if let Some(compatible) = self.compatibility.get(*tile, side)? {
+                if let Some(compatible) = self.compatibility.get(tile, side)? {
                     self.possibilities[nix].retain(|p| compatible.contains(p))
                 } else {
                     unreachable!("bad compatibility map?")
