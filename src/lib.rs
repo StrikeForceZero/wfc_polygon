@@ -557,31 +557,7 @@ mod tests {
             }
         }
 
-        let mut actual_tile_count = 0;
-        for (row_ix, row) in grid.matrix().into_iter().enumerate() {
-            for (col_ix, col) in row.into_iter().enumerate() {
-                let current_tile = col.expect("expected tile");
-                let mut neighbors_to_check = vec![];
-                neighbors_to_check.push(grid.get(col_ix + 1, row_ix));
-                neighbors_to_check.push(grid.get(col_ix, row_ix + 1));
-                if row_ix > 0 {
-                    neighbors_to_check.push(grid.get(col_ix, row_ix - 1));
-                }
-                if col_ix > 0 {
-                    neighbors_to_check.push(grid.get(col_ix - 1, row_ix));
-                }
-                for neighbor_tile in neighbors_to_check.into_iter().filter_map(|t| t) {
-                    let compatible = current_tile.compatible();
-                    assert!(
-                        compatible.contains(&neighbor_tile),
-                        "{current_tile:?} compatible tiles does not contain {neighbor_tile:?} ({compatible:?})"
-                    );
-                }
-                actual_tile_count += 1;
-            }
-        }
-
-        assert_eq!(actual_tile_count, grid.width * grid.height);
+        assert_eq!(grid.is_valid(false, Polygon::Square), Ok(true));
 
         Ok(())
     }
