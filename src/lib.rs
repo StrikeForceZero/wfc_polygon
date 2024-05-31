@@ -197,10 +197,12 @@ where
         }
     }
 
+    #[inline]
     pub fn xy_to_index(&self, x: usize, y: usize) -> usize {
         y * self.width + x
     }
 
+    #[inline]
     pub fn index_to_xy(&self, index: usize) -> (usize, usize) {
         let y = index / self.width;
         let x = index % self.width;
