@@ -145,6 +145,9 @@ where
             Err(CompatibilityMapError::InvalidSide(self.polygon, side))
         }
     }
+    pub fn iter(&self) -> impl Iterator<Item = (&CompatibilityMapKey<T>, &HashSet<T>)> {
+        self.compatibility.iter()
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Error)]
