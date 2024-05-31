@@ -620,4 +620,66 @@ mod tests {
 
         Ok(())
     }
+
+    #[test]
+    fn test_is_valid() -> anyhow::Result<()> {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+        enum MyTile {
+            A,
+            B,
+        }
+        impl MyTile {
+            fn compatible(&self) -> Vec<Self> {
+                match self {
+                    MyTile::A => vec![MyTile::A],
+                    MyTile::B => vec![],
+                }
+            }
+        }
+        impl Display for MyTile {
+            fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+                let str = match self {
+                    MyTile::A => "A",
+                    MyTile::B => "B",
+                };
+                write!(f, "{str}")
+            }
+        }
+
+        impl TileInstance for MyTile {}
+
+        impl Tile<Self> for MyTile {
+            fn all() -> Vec<Self> {
+                vec![MyTile::A, MyTile::B]
+            }
+        }
+
+        let mut compatibility = CompatibilityMap::new(Polygon::Square);
+
+        for tile in MyTile::all() {
+            for side in [Side::Top, Side::Right, Side::Bottom, Side::Left] {
+                compatibility.add(tile, side, tile.compatible())?;
+            }
+        }
+
+        let mut grid = Grid::new(2, 1, compatibility);
+
+        // don't allow empty cells
+        assert_eq!(grid.is_valid(false, Polygon::Square), Ok(false));
+        // allow empty cells
+        assert_eq!(grid.is_valid(true, Polygon::Square), Ok(true));
+
+        grid.set(0, 0, MyTile::A);
+        grid.set(1, 0, MyTile::B);
+
+        // dont allow bad compat
+        assert_eq!(grid.is_valid(false, Polygon::Square), Ok(false));
+
+        grid.set(1, 0, MyTile::A);
+
+        // valid compat
+        assert_eq!(grid.is_valid(false, Polygon::Square), Ok(true));
+
+        Ok(())
+    }
 }
