@@ -185,7 +185,7 @@ where
 
     pub fn get(&self, x: usize, y: usize) -> Option<T> {
         if x < self.width && y < self.height {
-            self.cells[y * self.width + x]
+            self.cells[self.xy_to_index(x, y)]
         } else {
             None
         }
@@ -193,7 +193,8 @@ where
 
     pub fn set(&mut self, x: usize, y: usize, tile: T) {
         if x < self.width && y < self.height {
-            self.cells[y * self.width + x] = Some(tile);
+            let index = self.xy_to_index(x, y);
+            self.cells[index] = Some(tile);
         }
     }
 
