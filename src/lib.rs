@@ -200,6 +200,10 @@ where
         }
     }
 
+    pub fn cells(&self) -> &[Option<T>] {
+        &self.cells
+    }
+
     pub fn get(&self, x: usize, y: usize) -> Option<T> {
         if x < self.width && y < self.height {
             self.cells[self.xy_to_index(x, y)]
