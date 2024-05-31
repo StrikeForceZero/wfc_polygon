@@ -352,6 +352,8 @@ where
         let mut possibilities: Vec<HashSet<T>> =
             vec![T::all().into_iter().collect(); self.width * self.height];
 
+        // TODO: validate existing cells
+
         // Re-load possibilities each iteration to account for external changes
         for (ix, cell) in self.cells.iter().enumerate() {
             let Some(tile) = cell else {
