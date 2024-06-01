@@ -16,7 +16,7 @@ use crate::hex::map::FlatTopHexagonalSegmentIdMap;
 use crate::hex::tile_id::HexTileId;
 use crate::resource::*;
 
-pub(crate) fn setup(gen_map_system_id: Res<GenMapSystemId>, mut commands: Commands) {
+pub fn setup(gen_map_system_id: Res<GenMapSystemId>, mut commands: Commands) {
     commands.spawn(Camera2dBundle {
         projection: OrthographicProjection {
             far: 1000.,
@@ -29,7 +29,7 @@ pub(crate) fn setup(gen_map_system_id: Res<GenMapSystemId>, mut commands: Comman
     commands.run_system(gen_map_system_id.0);
 }
 
-pub(crate) fn gen_map(
+pub fn gen_map(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
@@ -166,7 +166,7 @@ pub(crate) fn gen_map(
     hex_grid.0 = Some(wfc);
 }
 
-pub(crate) fn input_handler(
+pub fn input_handler(
     mut commands: Commands,
     mouse_input: Res<ButtonInput<MouseButton>>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
@@ -177,7 +177,7 @@ pub(crate) fn input_handler(
     }
 }
 
-pub(crate) fn update(
+pub fn update(
     mut commands: Commands,
     mut hex_possibilities_cache: ResMut<HexPossibilitiesCache>,
     hex_query: Query<(&HexPos, &HexData, &HexPossibilities, &Children)>,
@@ -219,7 +219,7 @@ pub(crate) fn update(
     }
 }
 
-pub(crate) fn invalid_hex_handler(
+pub fn invalid_hex_handler(
     hex_query: Query<(Ref<HexInvalid>, &Children), Added<HexInvalid>>,
     mut hex_segment_query: Query<
         (&mut Handle<ColorMaterial>, &InitialHighlight<ColorMaterial>),
@@ -262,10 +262,7 @@ pub(crate) fn invalid_hex_handler(
     }
 }
 
-pub(crate) fn ui(
-    mut egui_contexts: EguiContexts,
-    hex_possibilities_cache: Res<HexPossibilitiesCache>,
-) {
+pub fn ui(mut egui_contexts: EguiContexts, hex_possibilities_cache: Res<HexPossibilitiesCache>) {
     egui::Window::new("Possibilities").show(egui_contexts.ctx_mut(), |ui| {
         egui::ScrollArea::vertical()
             .auto_shrink([false; 2])

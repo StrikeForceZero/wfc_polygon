@@ -1,11 +1,11 @@
 use bevy::ecs::system::SystemId;
-use bevy::prelude::{Reflect, Resource};
+use bevy::prelude::*;
 use bevy::utils::HashMap;
 
 use crate::component::{HexData, HexPos, HexPossibilities};
 
 #[derive(Debug, Resource)]
-pub(crate) struct GenMapSystemId(pub(crate) SystemId);
+pub struct GenMapSystemId(pub SystemId);
 
 #[derive(Debug, Default, Reflect, Resource)]
-pub(crate) struct HexPossibilitiesCache(pub(crate) HashMap<HexPos, (HexData, HexPossibilities)>);
+pub struct HexPossibilitiesCache(pub HashMap<HexPos, (HexData, HexPossibilities)>);

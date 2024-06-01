@@ -1,10 +1,10 @@
 /// Wrapper to allow hashing `Color` with up to 2 decimals places of precision for each f32 value in equality checks
 use std::hash::{Hash, Hasher};
 
-use bevy::prelude::Color;
+use bevy::prelude::*;
 
 #[derive(Debug, Copy, Clone)]
-pub(crate) struct ColorWrapper(pub(crate) Color);
+pub struct ColorWrapper(pub Color);
 
 impl PartialEq for ColorWrapper {
     fn eq(&self, other: &Self) -> bool {
