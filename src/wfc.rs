@@ -191,9 +191,10 @@ where
     pub fn collapse_and_validate(&mut self) -> Result<bool, GridError<GT, T>> {
         let res = self.collapse();
         if !self.is_valid(true) {
-            return Err(GridError::CompatibilityViolation);
+            Err(GridError::CompatibilityViolation)
+        } else {
+            Ok(res)
         }
-        return Ok(res);
     }
 
     pub fn get_invalids(&self, allow_none: bool) -> HashSet<(usize, usize)> {

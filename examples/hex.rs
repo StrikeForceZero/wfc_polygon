@@ -14,9 +14,9 @@ use bevy_mod_picking::highlight::InitialHighlight;
 use bevy_mod_picking::prelude::*;
 use itertools::iproduct;
 
-use wfc_polygon::{FlatTopHexSide, HexagonType, Polygon, Side, Tile, TileInstance};
+use wfc_polygon::{FlatTopHexSide, Side, Tile, TileInstance};
 use wfc_polygon::compatibility_map::CompatibilityMap;
-use wfc_polygon::grid::{FlatTopHexGrid, Grid, GridType};
+use wfc_polygon::grid::{FlatTopHexGrid, GridType};
 use wfc_polygon::wfc::WaveFunctionCollapse;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -119,9 +119,6 @@ impl PartialEq for ColorWrapper {
 impl Eq for ColorWrapper {}
 
 impl ColorWrapper {
-    pub fn color(&self) -> Color {
-        self.0
-    }
     pub fn id(&self) -> [usize; 4] {
         let r = (self.0.r() * 100.0) as usize;
         let g = (self.0.g() * 100.0) as usize;
@@ -223,7 +220,6 @@ fn gen_map(
         .cells()
         .iter()
         .zip(wfc.cached_possibilities().iter())
-        .into_iter()
         .enumerate()
     {
         let (x, y) = wfc.grid().index_to_xy(ix);
@@ -236,11 +232,7 @@ fn gen_map(
         if x % 2 == 0 {
             position.y += 0.9 * SCALE;
         }
-        let hex_sides: Option<FlatHexSegments> = if let Some(tile) = *cell {
-            Some(tile.into())
-        } else {
-            None
-        };
+        let hex_sides: Option<FlatHexSegments> = (*cell).map(|tile| tile.into());
         let mesh_color_tuples = hex_mesh(hex_sides);
         let id = commands
             .spawn((
@@ -300,7 +292,6 @@ fn input_handler(
 ) {
     if keyboard_input.pressed(KeyCode::ControlLeft) && mouse_input.just_pressed(MouseButton::Left) {
         commands.run_system(gen_map_system_id.0);
-        return;
     }
 }
 
@@ -368,10 +359,10 @@ fn invalid_hex_handler(
                 new_color_material_handle
             };
             for child in children.iter() {
-                let Some((mut asset, initial)) = hex_segment_query.get_mut(*child).ok() else {
+                let Some((mut asset, _initial)) = hex_segment_query.get_mut(*child).ok() else {
                     continue;
                 };
-                *asset = color_material_handle.to_owned();
+                color_material_handle.clone_into(&mut asset);
             }
         }
     }
@@ -384,7 +375,7 @@ fn invalid_hex_handler(
             let Some((mut asset, initial)) = hex_segment_query.get_mut(*child).ok() else {
                 continue;
             };
-            *asset = initial.initial.to_owned();
+            initial.initial.clone_into(&mut asset);
         }
     }
 }
@@ -694,7 +685,6 @@ impl FlatHexSegments {
             FlatTopHexSide::Bottom => self.bottom,
             FlatTopHexSide::BottomLeft => self.bottom_left,
             FlatTopHexSide::TopLeft => self.top_left,
-            _ => panic!("invalid side {side:?}"),
         }
     }
     pub fn adjacent_segments(&self, side: FlatTopHexSide) -> [FlatTopHexSide; 2] {
@@ -705,7 +695,6 @@ impl FlatHexSegments {
             FlatTopHexSide::Bottom => [FlatTopHexSide::BottomRight, FlatTopHexSide::BottomLeft],
             FlatTopHexSide::BottomLeft => [FlatTopHexSide::BottomRight, FlatTopHexSide::TopLeft],
             FlatTopHexSide::TopLeft => [FlatTopHexSide::BottomLeft, FlatTopHexSide::Top],
-            _ => panic!("invalid side {side:?}"),
         }
     }
     pub fn has_valid_segments(&self) -> bool {

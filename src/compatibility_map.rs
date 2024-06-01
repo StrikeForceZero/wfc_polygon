@@ -33,16 +33,26 @@ where
     compatibility: BTreeMap<CompatibilityMapKey<GT, T>, HashSet<T>>,
 }
 
+impl<GT, T> Default for CompatibilityMap<GT, T>
+where
+    GT: ?Sized + GridType<T>,
+    T: Tile<T>,
+{
+    fn default() -> Self {
+        Self {
+            polygon: GT::Type::default(),
+            compatibility: BTreeMap::new(),
+        }
+    }
+}
+
 impl<GT, T> CompatibilityMap<GT, T>
 where
     GT: ?Sized + GridType<T>,
     T: Tile<T>,
 {
     pub fn new() -> Self {
-        Self {
-            polygon: GT::Type::default(),
-            compatibility: BTreeMap::new(),
-        }
+        Self::default()
     }
     #[inline]
     fn key(&self, tile: T, side: GT::SideType) -> CompatibilityMapKey<GT, T> {
@@ -88,7 +98,7 @@ where
             let opposite_side: <GT as GridType<T>>::SideType = match opposite_side.try_into() {
                 Ok(opposite_side) => opposite_side,
                 // in theory this should unreachable with the compile time checks
-                Err(err) => panic!("failed to convert {opposite_side:?} back into SideType"),
+                Err(_err) => panic!("failed to convert {opposite_side:?} back into SideType"),
             };
             for &other_id in valid_set {
                 let err = CompatibilityMapError::Contradiction(id, side, other_id, opposite_side);
@@ -137,9 +147,9 @@ mod tests {
             map.check_contradictions(),
             Err(CompatibilityMapError::Contradiction(
                 Id::A,
-                SquareSide::Right.into(),
+                SquareSide::Right,
                 Id::B,
-                SquareSide::Left.into(),
+                SquareSide::Left,
             ))
         );
 

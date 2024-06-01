@@ -49,7 +49,7 @@ pub enum HexagonType {
 pub struct Triangle;
 
 impl From<Triangle> for Polygon {
-    fn from(value: Triangle) -> Self {
+    fn from(_: Triangle) -> Self {
         Polygon::Triangle
     }
 }
@@ -58,7 +58,7 @@ impl From<Triangle> for Polygon {
 pub struct Square;
 
 impl From<Square> for Polygon {
-    fn from(value: Square) -> Self {
+    fn from(_: Square) -> Self {
         Polygon::Square
     }
 }
@@ -67,7 +67,7 @@ impl From<Square> for Polygon {
 pub struct FlatTopHexagon;
 
 impl From<FlatTopHexagon> for Polygon {
-    fn from(value: FlatTopHexagon) -> Self {
+    fn from(_: FlatTopHexagon) -> Self {
         Polygon::Hexagon(HexagonType::FlatTop)
     }
 }
@@ -76,7 +76,7 @@ impl From<FlatTopHexagon> for Polygon {
 pub struct PointyTopHexagon;
 
 impl From<PointyTopHexagon> for Polygon {
-    fn from(value: PointyTopHexagon) -> Self {
+    fn from(_: PointyTopHexagon) -> Self {
         Polygon::Hexagon(HexagonType::PointyTop)
     }
 }
