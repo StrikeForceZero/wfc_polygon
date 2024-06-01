@@ -7,6 +7,19 @@ use rand::seq::SliceRandom;
 use rand::thread_rng;
 use thiserror::Error;
 
+macro_rules! cast_tuple {
+    ($from:ty, $to:ty, $tuple:expr) => {{
+        let tuple = $tuple;
+        match <[$from; 2]>::from(tuple).map(<$to as TryFrom<_>>::try_from) {
+            [Ok(a), Ok(b)] => (a, b),
+            [Err(err), _] | [_, Err(err)] => {
+                let (a, b) = tuple;
+                panic!("{a} {b} {err}");
+            }
+        }
+    }};
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub enum Polygon {
     Triangle,
@@ -244,10 +257,12 @@ where
         side: Side,
         polygon: Polygon,
     ) -> Option<usize> {
+        let index = self.xy_to_index(x, y);
         let x = x as i32;
         let y = y as i32;
         let width = self.width as i32;
-        let index = match polygon {
+        let height = self.height as i32;
+        let nix = match polygon {
             Polygon::Triangle => match side {
                 Side::Bottom => (y + 1) * width + x,
                 Side::TopLeft => (y - 1) * width + (x - 1),
@@ -328,10 +343,19 @@ where
                 _ => panic!(" invalid side {side:?} for {polygon:?}"),
             },
         };
-        if index >= 0 {
-            let index = index as usize;
-            if index < self.cells.len() {
-                Some(index)
+        // Ensure neighbor_index is within valid range
+        if nix >= 0 && nix < (width * height) {
+            let (nx, ny) = cast_tuple!(usize, i32, self.index_to_xy(nix as usize));
+
+            if nx >= 0
+                && nx < width
+                && ny >= 0
+                && ny < height
+                // make sure we didn't wrap around the grid
+                && x.abs_diff(nx) <= 1
+                && y.abs_diff(ny) <= 1
+            {
+                Some(nix as usize)
             } else {
                 // overflow
                 None
@@ -413,6 +437,41 @@ where
         self.entropy_queue.push(Reverse((entropy, x, y)));
     }
 
+    pub fn get_invalids(
+        &self,
+        allow_none: bool,
+        polygon: Polygon,
+    ) -> Result<HashSet<(usize, usize)>, GridError> {
+        let mut invalids = HashSet::new();
+        for (ix, cell) in self.cells.iter().enumerate() {
+            let (x, y) = self.index_to_xy(ix);
+            let Some(&tile) = cell.as_ref() else {
+                if !allow_none {
+                    invalids.insert((x, y));
+                }
+                continue;
+            };
+            for (side, nix) in self.neighbor_indexes(x, y, polygon) {
+                let Some(nix) = nix else {
+                    continue;
+                };
+                let Some(neighbor_tile) = self.get_by_index(nix) else {
+                    // could be out of bounds, so we skip checking for none
+                    // if this was in bounds and none, it will still be caught eventually in the loop
+                    continue;
+                };
+                let Some(compatible) = self.compatibility.get(tile, side)? else {
+                    unreachable!("bad compatibility map?")
+                };
+                if !compatible.contains(&neighbor_tile) {
+                    println!("ix: {ix},  nix: {nix}, tile: {tile:?}, compatible: {compatible:?}");
+                    invalids.insert((x, y));
+                }
+            }
+        }
+        Ok(invalids)
+    }
+
     pub fn is_valid(&self, allow_none: bool, polygon: Polygon) -> Result<bool, GridError> {
         for (ix, cell) in self.cells.iter().enumerate() {
             let Some(&tile) = cell.as_ref() else {
@@ -466,7 +525,7 @@ where
                     continue;
                 };
                 if let Some(compatible) = self.compatibility.get(tile, side)? {
-                    self.possibilities[nix].retain(|p| compatible.contains(p))
+                    self.possibilities[nix].retain(|p| compatible.contains(p));
                 } else {
                     unreachable!("bad compatibility map?")
                 }
@@ -492,8 +551,13 @@ where
         self.propagate_constraints(polygon);
 
         while let Some(Reverse((_, x, y))) = self.entropy_queue.pop() {
-            let index = y * self.width + x;
-            if self.possibilities[index].len() > 1 {
+            let index = self.xy_to_index(x, y);
+            if self.possibilities[index].len() > 1
+                || self.possibilities[index].len() == 1 && self.get_by_index(index).is_none()
+            {
+                if self.possibilities[index].len() == 1 && self.get_by_index(index).is_none() {
+                    println!("force filling: ({x},{y})")
+                }
                 if let Some(&tile) = self.possibilities[index]
                     .iter()
                     .cloned()
@@ -517,6 +581,9 @@ where
                 }
             }
         }
+
+        // Ensure propagation queue is empty and constraints are fully propagated
+        self.propagate_constraints(polygon);
 
         // Check if any cells are still None
         for y in 0..self.height {
