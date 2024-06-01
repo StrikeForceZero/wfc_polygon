@@ -9,7 +9,6 @@ use bevy_mod_picking::prelude::*;
 use wfc_polygon::grid::{FlatTopHexGrid, GridType};
 use wfc_polygon::wfc::WaveFunctionCollapse;
 
-use crate::*;
 use crate::color_wrapper::ColorWrapper;
 use crate::component::*;
 use crate::event::{ClearCache, MapGenerated, RegenerateMap};
