@@ -16,12 +16,16 @@ use crate::hex::map::FlatTopHexagonalSegmentIdMap;
 use crate::hex::tile_id::HexTileId;
 use crate::resource::*;
 
-pub fn setup(gen_map_system_id: Res<GenMapSystemId>, mut commands: Commands) {
+pub fn setup(
+    gen_map_system_id: Res<GenMapSystemId>,
+    mut commands: Commands,
+    hex_scale: Res<HexScale>,
+) {
     commands.spawn(Camera2dBundle {
         projection: OrthographicProjection {
             far: 1000.,
             near: -1000.,
-            scale: 0.05 * SCALE,
+            scale: 0.05 * hex_scale.0,
             ..default()
         },
         ..default()
@@ -36,6 +40,7 @@ pub fn gen_map(
     mut hex_grid: ResMut<HexGrid>,
     mut hex_possibilities_cache: ResMut<HexPossibilitiesCache>,
     hex_query: Query<Entity, With<HexData>>,
+    hex_scale: Res<HexScale>,
 ) {
     hex_possibilities_cache.0.clear();
     for entity in hex_query.iter() {
@@ -103,11 +108,11 @@ pub fn gen_map(
         let is_hex_invalid = invalids.contains(&(x, y));
         let translate_x = x as f32 * 1.5;
         let translate_y = y as f32 * 1.732;
-        let mut position = Vec3::new(translate_x, translate_y, 0.0) * SCALE
-            - Vec2::new(16.0, 20.0).extend(0.0) * SCALE;
+        let mut position = Vec3::new(translate_x, translate_y, 0.0) * hex_scale.0
+            - Vec2::new(16.0, 20.0).extend(0.0) * hex_scale.0;
 
         if x % 2 == 0 {
-            position.y += 0.9 * SCALE;
+            position.y += 0.9 * hex_scale.0;
         }
         let hex_sides: Option<FlatTopHexagonalSegmentIdMap> = (*cell).map(|tile| tile.into());
         let mesh_color_tuples = crate::hex::mesh::hex_mesh(hex_sides);
@@ -129,7 +134,7 @@ pub fn gen_map(
                     // - resize mesh via mesh.scaled_by instead of transform.scale
                     // - use transform.scale and call mesh.compute_aabb() after the mesh is loaded in the scene to fix it
                     // https://github.com/bevyengine/bevy/issues/4294
-                    let mesh = mesh.scaled_by(Vec2::splat(0.95 * SCALE).extend(0.0));
+                    let mesh = mesh.scaled_by(Vec2::splat(0.95 * hex_scale.0).extend(0.0));
                     let mesh = Mesh2dHandle(meshes.add(mesh));
                     let handle = &*color_materials
                         .entry(ColorWrapper(color))

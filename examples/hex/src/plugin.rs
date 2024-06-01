@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::component::{HexData, HexGrid, HexInvalid, HexPos, HexPossibilities, InnerHex};
-use crate::resource::{GenMapSystemId, HexPossibilitiesCache};
+use crate::resource::{GenMapSystemId, HexPossibilitiesCache, HexScale};
 use crate::system;
 
 pub struct SubPlugin;
@@ -12,6 +12,7 @@ impl Plugin for SubPlugin {
         app
             /* rustfmt next line chain */
             .insert_resource(gen_map_res)
+            .insert_resource(HexScale(20.0))
             .register_type::<HexPos>()
             .register_type::<HexData>()
             .register_type::<HexPossibilities>()

@@ -9,3 +9,6 @@ pub struct GenMapSystemId(pub SystemId);
 
 #[derive(Debug, Default, Reflect, Resource)]
 pub struct HexPossibilitiesCache(pub HashMap<HexPos, (HexData, HexPossibilities)>);
+
+#[derive(Debug, Default, Reflect, Resource)]
+pub struct HexScale(pub f32);

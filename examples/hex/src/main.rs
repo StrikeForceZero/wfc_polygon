@@ -20,7 +20,6 @@ enum Mode {
 }
 
 const MODE: Mode = Mode::Full;
-const SCALE: f32 = 20.0;
 
 fn main() {
     App::new()
