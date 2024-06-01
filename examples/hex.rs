@@ -17,8 +17,9 @@ use bevy_mod_picking::highlight::InitialHighlight;
 use bevy_mod_picking::prelude::*;
 use itertools::iproduct;
 
-use wfc_polygon::{Grid, HexagonType, Polygon, Side, Tile, TileInstance};
+use wfc_polygon::{HexagonType, Polygon, Side, Tile, TileInstance};
 use wfc_polygon::compatibility_map::CompatibilityMap;
+use wfc_polygon::grid::Grid;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 enum Mode {
