@@ -1,4 +1,4 @@
-use std::hash::{Hash, Hasher};
+use std::hash::Hash;
 
 use bevy::prelude::*;
 use bevy::render::mesh::Indices;
@@ -15,6 +15,7 @@ use wfc_polygon::{FlatTopHexSide, Tile, TileInstance};
 use wfc_polygon::compatibility_map::CompatibilityMap;
 use wfc_polygon::grid::FlatTopHexGrid;
 
+mod color_wrapper;
 mod component;
 mod resource;
 mod system;
@@ -93,33 +94,6 @@ fn hex_mesh(sides: Option<FlatHexSegments>) -> Vec<(Mesh, Color)> {
             (mesh, color)
         })
         .collect()
-}
-
-#[derive(Debug, Copy, Clone)]
-struct ColorWrapper(Color);
-
-impl PartialEq for ColorWrapper {
-    fn eq(&self, other: &Self) -> bool {
-        self.id() == other.id()
-    }
-}
-
-impl Eq for ColorWrapper {}
-
-impl ColorWrapper {
-    pub fn id(&self) -> [usize; 4] {
-        let r = (self.0.r() * 100.0) as usize;
-        let g = (self.0.g() * 100.0) as usize;
-        let b = (self.0.b() * 100.0) as usize;
-        let a = (self.0.a() * 100.0) as usize;
-        [r, g, b, a]
-    }
-}
-
-impl Hash for ColorWrapper {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.id().hash(state);
-    }
 }
 
 const SCALE: f32 = 20.0;
