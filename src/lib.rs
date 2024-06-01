@@ -204,6 +204,10 @@ where
         &self.cells
     }
 
+    pub fn cached_possibilities(&self) -> &Vec<HashSet<T>> {
+        &self.possibilities
+    }
+
     pub fn get(&self, x: usize, y: usize) -> Option<T> {
         if x < self.width && y < self.height {
             self.cells[self.xy_to_index(x, y)]
