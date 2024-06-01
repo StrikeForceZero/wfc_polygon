@@ -12,14 +12,15 @@ use wfc_polygon::wfc::WaveFunctionCollapse;
 use crate::*;
 use crate::color_wrapper::ColorWrapper;
 use crate::component::*;
+use crate::event::{ClearCache, MapGenerated, RegenerateMap};
 use crate::hex::map::FlatTopHexagonalSegmentIdMap;
 use crate::hex::tile_id::HexTileId;
 use crate::resource::*;
 
 pub fn setup(
-    gen_map_system_id: Res<GenMapSystemId>,
     mut commands: Commands,
     hex_scale: Res<HexScale>,
+    mut event_writer: EventWriter<RegenerateMap>,
 ) {
     commands.spawn(Camera2dBundle {
         projection: OrthographicProjection {
@@ -30,159 +31,37 @@ pub fn setup(
         },
         ..default()
     });
-    commands.run_system(gen_map_system_id.0);
+    event_writer.send(RegenerateMap);
 }
 
-pub fn gen_map(
-    mut commands: Commands,
-    mut meshes: ResMut<Assets<Mesh>>,
-    mut materials: ResMut<Assets<ColorMaterial>>,
-    mut hex_grid: ResMut<HexGrid>,
-    mut hex_possibilities_cache: ResMut<HexPossibilitiesCache>,
-    hex_query: Query<Entity, With<HexData>>,
-    hex_scale: Res<HexScale>,
-) {
-    hex_possibilities_cache.0.clear();
-    for entity in hex_query.iter() {
-        commands.entity(entity).despawn_recursive();
-    }
-
+pub fn gen_map(mut event_writer: EventWriter<MapGenerated>) {
     let mut wfc = WaveFunctionCollapse::new_with_compatibility(
         FlatTopHexGrid::new(25, 25),
         HexTileId::get_compatibility_map(),
     );
 
-    /*grid.set(
-        10,
-        10,
-        Hex((
-            HexSegment::MountainPeak,
-            HexSegment::MountainPeak,
-            HexSegment::MountainPeak,
-            HexSegment::MountainPeak,
-            HexSegment::MountainPeak,
-            HexSegment::MountainPeak,
-        )),
-    );*/
-
-    if MODE == Mode::Full {
-        for ((_, hex, side), patterns) in HexTileId::get_compatibility_map().iter() {
-            println!(
-                "{:?} {side:?} {:?}",
-                hex.0 .0,
-                patterns.iter().map(|h| h.0 .0).collect::<Vec<_>>()
-            );
-        }
-    }
-
     let max_retries = 100;
     for n in 1..=max_retries {
-        println!("attempt {n}/{max_retries}");
+        println!("collapse attempt {n}/{max_retries}");
         if wfc.collapse() {
             println!("collapse successful");
             break;
         }
     }
-
-    let is_grid_valid = wfc.is_valid(false);
-    println!("is valid: {is_grid_valid}");
-
-    let invalids: HashSet<(usize, usize)> = if !is_grid_valid {
-        wfc.get_invalids(false).into_iter().collect()
-    } else {
-        HashSet::new()
-    };
-
-    let empty_cell_count = wfc.grid().cells().iter().filter(|c| c.is_none()).count();
-    println!("empty cells: {empty_cell_count}");
-
-    let mut color_materials: HashMap<ColorWrapper, Handle<ColorMaterial>> = HashMap::new();
-    for (ix, (cell, possibilities)) in wfc
-        .grid()
-        .cells()
-        .iter()
-        .zip(wfc.cached_possibilities().iter())
-        .enumerate()
-    {
-        let (x, y) = wfc.grid().index_to_xy(ix);
-        let is_hex_invalid = invalids.contains(&(x, y));
-        let translate_x = x as f32 * 1.5;
-        let translate_y = y as f32 * 1.732;
-        let mut position = Vec3::new(translate_x, translate_y, 0.0) * hex_scale.0
-            - Vec2::new(16.0, 20.0).extend(0.0) * hex_scale.0;
-
-        if x % 2 == 0 {
-            position.y += 0.9 * hex_scale.0;
-        }
-        let hex_sides: Option<FlatTopHexagonalSegmentIdMap> = (*cell).map(|tile| tile.into());
-        let mesh_color_tuples = crate::hex::mesh::hex_mesh(hex_sides);
-        let id = commands
-            .spawn((
-                HexData(hex_sides),
-                HexPos(UVec2::new(x as u32, y as u32)),
-                HexPossibilities(
-                    possibilities
-                        .iter()
-                        .cloned()
-                        .collect::<HashSet<HexTileId>>(),
-                ),
-                SpatialBundle::from_transform(Transform::from_translation(position)),
-            ))
-            .with_children(|children| {
-                for (mesh, color) in mesh_color_tuples {
-                    // AABBs don't get recalculated and break ray-casts / picking, so we need to either:
-                    // - resize mesh via mesh.scaled_by instead of transform.scale
-                    // - use transform.scale and call mesh.compute_aabb() after the mesh is loaded in the scene to fix it
-                    // https://github.com/bevyengine/bevy/issues/4294
-                    let mesh = mesh.scaled_by(Vec2::splat(0.95 * hex_scale.0).extend(0.0));
-                    let mesh = Mesh2dHandle(meshes.add(mesh));
-                    let handle = &*color_materials
-                        .entry(ColorWrapper(color))
-                        .or_insert_with(|| materials.add(ColorMaterial::from(color)));
-                    let material = handle.clone();
-                    children.spawn((
-                        InnerHex,
-                        MaterialMesh2dBundle {
-                            mesh,
-                            material,
-                            ..default()
-                        },
-                        PickableBundle::default(),
-                    ));
-                }
-                children.spawn(Text2dBundle {
-                    text: Text::from_section(
-                        ix.to_string(),
-                        TextStyle {
-                            font_size: 15.0,
-                            color: Color::PURPLE,
-                            ..default()
-                        },
-                    ),
-                    transform: Transform::from_translation(Vec2::default().extend(10.0)),
-                    ..default()
-                });
-            })
-            .id();
-        if is_hex_invalid {
-            commands.entity(id).insert(HexInvalid);
-        }
-    }
-    hex_grid.0 = Some(wfc);
+    event_writer.send(MapGenerated(wfc));
 }
 
 pub fn input_handler(
-    mut commands: Commands,
     mouse_input: Res<ButtonInput<MouseButton>>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
-    gen_map_system_id: Res<GenMapSystemId>,
+    mut event_writer: EventWriter<RegenerateMap>,
 ) {
     if keyboard_input.pressed(KeyCode::ControlLeft) && mouse_input.just_pressed(MouseButton::Left) {
-        commands.run_system(gen_map_system_id.0);
+        event_writer.send(RegenerateMap);
     }
 }
 
-pub fn update(
+pub fn cache_update_on_hex_selected_handler(
     mut commands: Commands,
     mut hex_possibilities_cache: ResMut<HexPossibilitiesCache>,
     hex_query: Query<(&HexPos, &HexData, &HexPossibilities, &Children)>,
@@ -281,4 +160,126 @@ pub fn ui(mut egui_contexts: EguiContexts, hex_possibilities_cache: Res<HexPossi
                 }
             });
     });
+}
+
+pub fn regen_map_event_handler(
+    mut commands: Commands,
+    gen_map_system_id: Res<GenMapSystemId>,
+    mut events: EventReader<RegenerateMap>,
+) {
+    if events.read().next().is_some() {
+        events.clear();
+        commands.run_system(gen_map_system_id.0);
+    }
+}
+
+pub fn clear_cache_event_handler(
+    mut events: EventReader<ClearCache>,
+    mut hex_possibilities_cache: ResMut<HexPossibilitiesCache>,
+) {
+    if events.read().next().is_some() {
+        events.clear();
+        hex_possibilities_cache.0.clear();
+    }
+}
+
+pub fn map_generated_event_handler(
+    mut commands: Commands,
+    mut events: EventReader<MapGenerated>,
+    hex_query: Query<Entity, With<HexData>>,
+    hex_scale: Res<HexScale>,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+) {
+    if let Some(MapGenerated(wfc)) = events.read().last() {
+        // despawn last map
+        for entity in hex_query.iter() {
+            commands.entity(entity).despawn_recursive();
+        }
+
+        let is_grid_valid = wfc.is_valid(false);
+        println!("is valid: {is_grid_valid}");
+
+        let empty_cell_count = wfc.grid().cells().iter().filter(|c| c.is_none()).count();
+        println!("empty cells: {empty_cell_count}");
+
+        let invalids: HashSet<(usize, usize)> = if !is_grid_valid {
+            wfc.get_invalids(false).into_iter().collect()
+        } else {
+            HashSet::new()
+        };
+
+        let mut color_materials: HashMap<ColorWrapper, Handle<ColorMaterial>> = HashMap::new();
+        for (ix, (cell, possibilities)) in wfc
+            .grid()
+            .cells()
+            .iter()
+            .zip(wfc.cached_possibilities().iter())
+            .enumerate()
+        {
+            let (x, y) = wfc.grid().index_to_xy(ix);
+            let is_hex_invalid = invalids.contains(&(x, y));
+            let translate_x = x as f32 * 1.5;
+            let translate_y = y as f32 * 1.732;
+            let mut position = Vec3::new(translate_x, translate_y, 0.0) * hex_scale.0
+                - Vec2::new(16.0, 20.0).extend(0.0) * hex_scale.0;
+
+            if x % 2 == 0 {
+                position.y += 0.9 * hex_scale.0;
+            }
+            let hex_sides: Option<FlatTopHexagonalSegmentIdMap> = (*cell).map(|tile| tile.into());
+            let mesh_color_tuples = crate::hex::mesh::hex_mesh(hex_sides);
+            let id = commands
+                .spawn((
+                    HexData(hex_sides),
+                    HexPos(UVec2::new(x as u32, y as u32)),
+                    HexPossibilities(
+                        possibilities
+                            .iter()
+                            .cloned()
+                            .collect::<HashSet<HexTileId>>(),
+                    ),
+                    SpatialBundle::from_transform(Transform::from_translation(position)),
+                ))
+                .with_children(|children| {
+                    for (mesh, color) in mesh_color_tuples {
+                        // AABBs don't get recalculated and break ray-casts / picking, so we need to either:
+                        // - resize mesh via mesh.scaled_by instead of transform.scale
+                        // - use transform.scale and call mesh.compute_aabb() after the mesh is loaded in the scene to fix it
+                        // https://github.com/bevyengine/bevy/issues/4294
+                        let mesh = mesh.scaled_by(Vec2::splat(0.95 * hex_scale.0).extend(0.0));
+                        let mesh = Mesh2dHandle(meshes.add(mesh));
+                        let handle = &*color_materials
+                            .entry(ColorWrapper(color))
+                            .or_insert_with(|| materials.add(ColorMaterial::from(color)));
+                        let material = handle.clone();
+                        children.spawn((
+                            InnerHex,
+                            MaterialMesh2dBundle {
+                                mesh,
+                                material,
+                                ..default()
+                            },
+                            PickableBundle::default(),
+                        ));
+                    }
+                    children.spawn(Text2dBundle {
+                        text: Text::from_section(
+                            ix.to_string(),
+                            TextStyle {
+                                font_size: 15.0,
+                                color: Color::PURPLE,
+                                ..default()
+                            },
+                        ),
+                        transform: Transform::from_translation(Vec2::default().extend(10.0)),
+                        ..default()
+                    });
+                })
+                .id();
+            if is_hex_invalid {
+                commands.entity(id).insert(HexInvalid);
+            }
+        }
+    }
 }

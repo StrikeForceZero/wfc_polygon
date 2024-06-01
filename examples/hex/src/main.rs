@@ -5,8 +5,11 @@ use bevy_mod_picking::prelude::*;
 
 use plugin::SubPlugin;
 
+use crate::hex::tile_id::HexTileId;
+
 mod color_wrapper;
 mod component;
+mod event;
 mod hex;
 mod plugin;
 mod resource;
@@ -20,7 +23,9 @@ enum Mode {
 }
 
 const MODE: Mode = Mode::Full;
+const DEBUG_COMPATIBILITY_MAP: bool = false;
 
+//noinspection RsConstantConditionIf
 fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(low_latency_window_plugin()))
@@ -30,4 +35,21 @@ fn main() {
         .add_plugins(DefaultPickingPlugins)
         .add_plugins(SubPlugin)
         .run();
+
+    if DEBUG_COMPATIBILITY_MAP {
+        match MODE {
+            Mode::Full => {
+                for ((_, hex, side), patterns) in HexTileId::get_compatibility_map().iter() {
+                    println!(
+                        "{:?} {side:?} {:?}",
+                        hex.0 .0,
+                        patterns.iter().map(|h| h.0 .0).collect::<Vec<_>>()
+                    );
+                }
+            }
+            Mode::Segments => {
+                // too many to print
+            }
+        }
+    }
 }
