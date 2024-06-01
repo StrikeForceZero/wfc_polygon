@@ -95,9 +95,9 @@ where
 }
 
 #[derive(Debug, Clone, PartialEq, Error)]
-pub enum GridError {
+pub enum GridError<T> {
     #[error("GridError: {0:?}")]
-    CompatibilityMapError(#[from] CompatibilityMapError),
+    CompatibilityMapError(#[from] CompatibilityMapError<T>),
     #[error("Grid has compatibility violation")]
     CompatibilityViolation,
 }

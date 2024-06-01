@@ -6,7 +6,7 @@ use crate::{HexagonType, Polygon, Side, Tile};
 use crate::grid::GridType;
 
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Ord, Eq, Error)]
-pub enum CompatibilityMapError {
+pub enum CompatibilityMapError<T> {
     #[error("{1:?} is an invalid side for {0:?}")]
     InvalidSide(Polygon, Side),
 }
@@ -73,7 +73,7 @@ where
         tile: T,
         side: GT::SideType,
         compatible_tiles: Vec<T>,
-    ) -> Result<(), CompatibilityMapError> {
+    ) -> Result<(), CompatibilityMapError<T>> {
         if self.is_valid_side(side) {
             self.compatibility
                 .insert(self.key(tile, side), compatible_tiles.into_iter().collect());
@@ -89,7 +89,7 @@ where
         &self,
         tile: T,
         side: GT::SideType,
-    ) -> Result<Option<&HashSet<T>>, CompatibilityMapError> {
+    ) -> Result<Option<&HashSet<T>>, CompatibilityMapError<T>> {
         if self.is_valid_side(side) {
             Ok(self.compatibility.get(&self.key(tile, side)))
         } else {

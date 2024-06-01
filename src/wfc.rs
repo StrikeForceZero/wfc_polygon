@@ -101,7 +101,7 @@ where
         self.entropy_queue.push(Reverse((entropy, x, y)));
     }
 
-    pub fn collapse(&mut self) -> Result<bool, GridError> {
+    pub fn collapse(&mut self) -> Result<bool, GridError<T>> {
         let mut rng = thread_rng();
 
         // Re-load possibilities each iteration to account for external changes
@@ -188,7 +188,7 @@ where
         Ok(true)
     }
 
-    pub fn collapse_and_validate(&mut self) -> Result<bool, GridError> {
+    pub fn collapse_and_validate(&mut self) -> Result<bool, GridError<T>> {
         let res = self.collapse();
         if !self.is_valid(true)? {
             return Err(GridError::CompatibilityViolation);
@@ -196,7 +196,7 @@ where
         return res;
     }
 
-    pub fn get_invalids(&self, allow_none: bool) -> Result<HashSet<(usize, usize)>, GridError> {
+    pub fn get_invalids(&self, allow_none: bool) -> Result<HashSet<(usize, usize)>, GridError<T>> {
         let mut invalids = HashSet::new();
         for (ix, cell) in self.grid.cells().iter().enumerate() {
             let (x, y) = self.grid.index_to_xy(ix);
@@ -227,7 +227,7 @@ where
         Ok(invalids)
     }
 
-    pub fn is_valid(&self, allow_none: bool) -> Result<bool, GridError> {
+    pub fn is_valid(&self, allow_none: bool) -> Result<bool, GridError<T>> {
         for (ix, cell) in self.grid.cells().iter().enumerate() {
             let Some(&tile) = cell.as_ref() else {
                 if allow_none {
