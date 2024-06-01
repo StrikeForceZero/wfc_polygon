@@ -15,12 +15,14 @@ use bevy_mod_picking::prelude::*;
 use itertools::iproduct;
 
 use component::{HexData, HexGrid, HexInvalid, HexPos, HexPossibilities, InnerHex};
+use resource::{GenMapSystemId, HexPossibilitiesCache};
 use wfc_polygon::{FlatTopHexSide, Side, Tile, TileInstance};
 use wfc_polygon::compatibility_map::CompatibilityMap;
 use wfc_polygon::grid::{FlatTopHexGrid, GridType};
 use wfc_polygon::wfc::WaveFunctionCollapse;
 
 mod component;
+mod resource;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 enum Mode {
@@ -124,9 +126,6 @@ impl Hash for ColorWrapper {
         self.id().hash(state);
     }
 }
-
-#[derive(Debug, Resource)]
-struct GenMapSystemId(SystemId);
 
 const SCALE: f32 = 20.0;
 
@@ -370,9 +369,6 @@ fn invalid_hex_handler(
         }
     }
 }
-
-#[derive(Debug, Default, Reflect, Resource)]
-struct HexPossibilitiesCache(HashMap<HexPos, (HexData, HexPossibilities)>);
 
 struct SubPlugin;
 
