@@ -1,9 +1,6 @@
-use std::fmt::{Display, Formatter};
 use std::hash::{Hash, Hasher};
 
 use bevy::ecs::system::SystemId;
-use bevy::input::keyboard::KeyboardInput;
-use bevy::input::mouse::MouseButtonInput;
 use bevy::prelude::*;
 use bevy::render::mesh::Indices;
 use bevy::render::mesh::PrimitiveTopology::TriangleList;
