@@ -4,7 +4,7 @@ use thiserror::Error;
 
 use crate::{
     FlatTopHexagon, FlatTopHexSide, HexagonType, PointyTopHexagon, PointyTopHexSide, Polygon, Side,
-    Square, SquareSide, Tile, TileInstance, Triangle, TriangleSide,
+    Square, SquareSide, Tile, Triangle, TriangleSide,
 };
 use crate::compatibility_map::CompatibilityMapError;
 
