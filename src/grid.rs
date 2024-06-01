@@ -95,9 +95,13 @@ where
 }
 
 #[derive(Debug, Clone, PartialEq, Error)]
-pub enum GridError<T> {
+pub enum GridError<GT, T>
+where
+    GT: ?Sized + GridType<T>,
+    T: Tile<T>,
+{
     #[error("GridError: {0:?}")]
-    CompatibilityMapError(#[from] CompatibilityMapError<T>),
+    CompatibilityMapError(#[from] CompatibilityMapError<GT, T>),
     #[error("Grid has compatibility violation")]
     CompatibilityViolation,
 }

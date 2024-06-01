@@ -1,4 +1,5 @@
 use std::collections::{BTreeMap, HashSet};
+use std::fmt::Debug;
 
 use thiserror::Error;
 
@@ -6,10 +7,14 @@ use crate::{HexagonType, Polygon, Side, Tile};
 use crate::grid::GridType;
 
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Ord, Eq, Error)]
-pub enum CompatibilityMapError<T> {
+pub enum CompatibilityMapError<GT, T>
+where
+    GT: ?Sized + GridType<T>,
+    T: Tile<T>,
+{
     #[error("Contradiction: {0:?} allows for {2:?} on its {1:?} but {2:?} does not allow for {0:?} on its {3:?}"
     )]
-    Contradiction(T, Side, T, Side),
+    Contradiction(T, GT::SideType, T, GT::SideType),
 }
 
 pub type CompatibilityMapKey<GT, T>
@@ -76,7 +81,7 @@ where
     pub fn get(&self, tile: T, side: GT::SideType) -> Option<&HashSet<T>> {
         self.compatibility.get(&self.key(tile, side))
     }
-    pub fn check_contradictions(&self) -> Result<(), CompatibilityMapError<T>> {
+    pub fn check_contradictions(&self) -> Result<(), CompatibilityMapError<GT, T>> {
         for (&(polygon, id, side), valid_set) in self.compatibility.iter() {
             let opposite_side: Side = side.into();
             let opposite_side = opposite_side.opposite();
@@ -86,12 +91,7 @@ where
                 Err(err) => panic!("failed to convert {opposite_side:?} back into SideType"),
             };
             for &other_id in valid_set {
-                let err = CompatibilityMapError::Contradiction(
-                    id,
-                    side.into(),
-                    other_id,
-                    opposite_side.into(),
-                );
+                let err = CompatibilityMapError::Contradiction(id, side, other_id, opposite_side);
                 let other_key = &(polygon, other_id, opposite_side);
                 if let Some(other_valid_set) = self.compatibility.get(other_key) {
                     if other_valid_set.contains(&id) {

@@ -188,7 +188,7 @@ where
         true
     }
 
-    pub fn collapse_and_validate(&mut self) -> Result<bool, GridError<T>> {
+    pub fn collapse_and_validate(&mut self) -> Result<bool, GridError<GT, T>> {
         let res = self.collapse();
         if !self.is_valid(true) {
             return Err(GridError::CompatibilityViolation);
