@@ -5,14 +5,8 @@ use thiserror::Error;
 use crate::{HexagonType, Polygon, Side, Tile};
 use crate::grid::GridType;
 
-/*
-    TODO: now that we have constraints on polygon and side we could potentially remove InvalidSide
-        and remove result from anything that potentially could return it
-*/
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Ord, Eq, Error)]
 pub enum CompatibilityMapError<T> {
-    #[error("{1:?} is an invalid side for {0:?}")]
-    InvalidSide(Polygon, Side),
     #[error("Contradiction: {0:?} allows for {2:?} on its {1:?} but {2:?} does not allow for {0:?} on its {3:?}"
     )]
     Contradiction(T, Side, T, Side),
@@ -75,36 +69,12 @@ where
             ),
         }
     }
-    pub fn add(
-        &mut self,
-        tile: T,
-        side: GT::SideType,
-        compatible_tiles: Vec<T>,
-    ) -> Result<(), CompatibilityMapError<T>> {
-        if self.is_valid_side(side) {
-            self.compatibility
-                .insert(self.key(tile, side), compatible_tiles.into_iter().collect());
-            Ok(())
-        } else {
-            Err(CompatibilityMapError::InvalidSide(
-                self.polygon.into(),
-                side.into(),
-            ))
-        }
+    pub fn add(&mut self, tile: T, side: GT::SideType, compatible_tiles: Vec<T>) {
+        self.compatibility
+            .insert(self.key(tile, side), compatible_tiles.into_iter().collect());
     }
-    pub fn get(
-        &self,
-        tile: T,
-        side: GT::SideType,
-    ) -> Result<Option<&HashSet<T>>, CompatibilityMapError<T>> {
-        if self.is_valid_side(side) {
-            Ok(self.compatibility.get(&self.key(tile, side)))
-        } else {
-            Err(CompatibilityMapError::InvalidSide(
-                self.polygon.into(),
-                side.into(),
-            ))
-        }
+    pub fn get(&self, tile: T, side: GT::SideType) -> Option<&HashSet<T>> {
+        self.compatibility.get(&self.key(tile, side))
     }
     pub fn check_contradictions(&self) -> Result<(), CompatibilityMapError<T>> {
         for (&(polygon, id, side), valid_set) in self.compatibility.iter() {
@@ -160,10 +130,8 @@ mod tests {
         }
         let mut map = CompatibilityMap::<SquareGrid, Id>::new();
 
-        map.add(Id::A, SquareSide::Right, vec![Id::B])
-            .expect("failed to add rule");
-        map.add(Id::B, SquareSide::Left, vec![])
-            .expect("failed to add rule");
+        map.add(Id::A, SquareSide::Right, vec![Id::B]);
+        map.add(Id::B, SquareSide::Left, vec![]);
 
         assert_eq!(
             map.check_contradictions(),
@@ -175,8 +143,7 @@ mod tests {
             ))
         );
 
-        map.add(Id::B, SquareSide::Left, vec![Id::A])
-            .expect("failed to add rule");
+        map.add(Id::B, SquareSide::Left, vec![Id::A]);
 
         assert_eq!(map.check_contradictions(), Ok(()));
     }

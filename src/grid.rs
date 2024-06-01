@@ -379,7 +379,7 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_square() -> anyhow::Result<()> {
+    fn test_square() {
         #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
         enum MyTile {
             GrassWater,
@@ -423,7 +423,7 @@ mod tests {
                 SquareSide::Bottom,
                 SquareSide::Left,
             ] {
-                compatibility.add(tile, side, tile.compatible())?;
+                compatibility.add(tile, side, tile.compatible());
             }
         }
 
@@ -432,14 +432,12 @@ mod tests {
         let max_retries = 10;
 
         for _ in 1..=max_retries {
-            if wfc.collapse()? {
+            if wfc.collapse() {
                 break;
             }
         }
 
-        assert_eq!(wfc.is_valid(false), Ok(true));
-
-        Ok(())
+        assert!(wfc.is_valid(false));
     }
 
     #[test]
@@ -484,7 +482,7 @@ mod tests {
                 SquareSide::Bottom,
                 SquareSide::Left,
             ] {
-                compatibility.add(tile, side, tile.compatible())?;
+                compatibility.add(tile, side, tile.compatible());
             }
         }
 
@@ -492,20 +490,20 @@ mod tests {
             WaveFunctionCollapse::new_with_compatibility(SquareGrid::new(2, 1), compatibility);
 
         // don't allow empty cells
-        assert_eq!(wfc.is_valid(false), Ok(false));
+        assert!(!wfc.is_valid(false));
         // allow empty cells
-        assert_eq!(wfc.is_valid(true), Ok(true));
+        assert!(wfc.is_valid(true));
 
         wfc.grid_mut().set(0, 0, MyTile::A);
         wfc.grid_mut().set(1, 0, MyTile::B);
 
         // dont allow bad compat
-        assert_eq!(wfc.is_valid(false), Ok(false));
+        assert!(!wfc.is_valid(false));
 
         wfc.grid_mut().set(1, 0, MyTile::A);
 
         // valid compat
-        assert_eq!(wfc.is_valid(false), Ok(true));
+        assert!(wfc.is_valid(false));
 
         Ok(())
     }

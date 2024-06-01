@@ -80,7 +80,7 @@ where
             };
             for (side, neighbor_index_opt) in self.grid.neighbor_indexes(x, y) {
                 if let Some(neighbor_index) = neighbor_index_opt {
-                    if let Some(allowed_tiles) = self.compatibility.get(tile, side).unwrap() {
+                    if let Some(allowed_tiles) = self.compatibility.get(tile, side) {
                         let possibilities = &mut self.possibilities[neighbor_index];
                         let old_len = possibilities.len();
                         possibilities.retain(|t| allowed_tiles.contains(t));
@@ -101,7 +101,7 @@ where
         self.entropy_queue.push(Reverse((entropy, x, y)));
     }
 
-    pub fn collapse(&mut self) -> Result<bool, GridError<T>> {
+    pub fn collapse(&mut self) -> bool {
         let mut rng = thread_rng();
 
         // Re-load possibilities each iteration to account for external changes
@@ -115,7 +115,7 @@ where
                 let Some(nix) = nix else {
                     continue;
                 };
-                if let Some(compatible) = self.compatibility.get(tile, side)? {
+                if let Some(compatible) = self.compatibility.get(tile, side) {
                     self.possibilities[nix].retain(|p| compatible.contains(p));
                 } else {
                     unreachable!("bad compatibility map?")
@@ -181,22 +181,22 @@ where
             for x in 0..self.grid.width() {
                 let index = y * self.grid.width() + x;
                 if self.grid.cells()[index].is_none() {
-                    return Ok(false);
+                    return false;
                 }
             }
         }
-        Ok(true)
+        true
     }
 
     pub fn collapse_and_validate(&mut self) -> Result<bool, GridError<T>> {
         let res = self.collapse();
-        if !self.is_valid(true)? {
+        if !self.is_valid(true) {
             return Err(GridError::CompatibilityViolation);
         }
-        return res;
+        return Ok(res);
     }
 
-    pub fn get_invalids(&self, allow_none: bool) -> Result<HashSet<(usize, usize)>, GridError<T>> {
+    pub fn get_invalids(&self, allow_none: bool) -> HashSet<(usize, usize)> {
         let mut invalids = HashSet::new();
         for (ix, cell) in self.grid.cells().iter().enumerate() {
             let (x, y) = self.grid.index_to_xy(ix);
@@ -215,7 +215,7 @@ where
                     // if this was in bounds and none, it will still be caught eventually in the loop
                     continue;
                 };
-                let Some(compatible) = self.compatibility.get(tile, side)? else {
+                let Some(compatible) = self.compatibility.get(tile, side) else {
                     unreachable!("bad compatibility map?")
                 };
                 if !compatible.contains(&neighbor_tile) {
@@ -224,16 +224,16 @@ where
                 }
             }
         }
-        Ok(invalids)
+        invalids
     }
 
-    pub fn is_valid(&self, allow_none: bool) -> Result<bool, GridError<T>> {
+    pub fn is_valid(&self, allow_none: bool) -> bool {
         for (ix, cell) in self.grid.cells().iter().enumerate() {
             let Some(&tile) = cell.as_ref() else {
                 if allow_none {
                     continue;
                 } else {
-                    return Ok(false);
+                    return false;
                 }
             };
             let (x, y) = self.grid.index_to_xy(ix);
@@ -246,14 +246,14 @@ where
                     // if this was in bounds and none, it will still be caught eventually in the loop
                     continue;
                 };
-                let Some(compatible) = self.compatibility.get(tile, side)? else {
+                let Some(compatible) = self.compatibility.get(tile, side) else {
                     unreachable!("bad compatibility map?")
                 };
                 if !compatible.contains(&neighbor_tile) {
-                    return Ok(false);
+                    return false;
                 }
             }
         }
-        Ok(true)
+        true
     }
 }

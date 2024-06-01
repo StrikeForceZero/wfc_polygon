@@ -170,7 +170,7 @@ fn gen_map(
 
     let mut wfc = WaveFunctionCollapse::new_with_compatibility(
         FlatTopHexGrid::new(25, 25),
-        Hex::get_compatibility_map().expect("expected compat map"),
+        Hex::get_compatibility_map(),
     );
 
     /*grid.set(
@@ -187,7 +187,7 @@ fn gen_map(
     );*/
 
     if MODE == Mode::Full {
-        for ((_, hex, side), patterns) in Hex::get_compatibility_map().unwrap().iter() {
+        for ((_, hex, side), patterns) in Hex::get_compatibility_map().iter() {
             println!(
                 "{:?} {side:?} {:?}",
                 hex.0 .0,
@@ -199,23 +199,17 @@ fn gen_map(
     let max_retries = 100;
     for n in 1..=max_retries {
         println!("attempt {n}/{max_retries}");
-        if wfc.collapse().expect("collapse failed") {
+        if wfc.collapse() {
             println!("collapse successful");
             break;
         }
     }
 
-    let is_grid_valid = match wfc.is_valid(false) {
-        Ok(is_valid) => is_valid,
-        Err(err) => panic!("failed to validate - {err}"),
-    };
+    let is_grid_valid = wfc.is_valid(false);
     println!("is valid: {is_grid_valid}");
 
     let invalids: HashSet<(usize, usize)> = if !is_grid_valid {
-        wfc.get_invalids(false)
-            .expect("failed to get invalids")
-            .into_iter()
-            .collect()
+        wfc.get_invalids(false).into_iter().collect()
     } else {
         HashSet::new()
     };
@@ -626,7 +620,7 @@ impl Hex {
             ),
         ]
     }
-    fn get_compatibility_map() -> anyhow::Result<CompatibilityMap<FlatTopHexGrid, Self>> {
+    fn get_compatibility_map() -> CompatibilityMap<FlatTopHexGrid, Self> {
         let mut map = CompatibilityMap::new();
         let permutations = Self::permutations();
         for &combination in permutations.iter() {
@@ -644,10 +638,10 @@ impl Hex {
                 if valid_tiles.is_empty() {
                     panic!("failed to get valid tiles\nside: {side:?}\npattern: {pattern:?}");
                 }
-                map.add(combination, side, valid_tiles)?;
+                map.add(combination, side, valid_tiles);
             }
         }
-        Ok(map)
+        map
     }
 }
 
