@@ -7,6 +7,19 @@ use rand::seq::SliceRandom;
 use rand::thread_rng;
 use thiserror::Error;
 
+macro_rules! cast_tuple {
+    ($from:ty, $to:ty, $tuple:expr) => {{
+        let tuple = $tuple;
+        match <[$from; 2]>::from(tuple).map(<$to as TryFrom<_>>::try_from) {
+            [Ok(a), Ok(b)] => (a, b),
+            [Err(err), _] | [_, Err(err)] => {
+                let (a, b) = tuple;
+                panic!("{a} {b} {err}");
+            }
+        }
+    }};
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub enum Polygon {
     Triangle,
@@ -244,10 +257,12 @@ where
         side: Side,
         polygon: Polygon,
     ) -> Option<usize> {
+        let index = self.xy_to_index(x, y);
         let x = x as i32;
         let y = y as i32;
         let width = self.width as i32;
-        let index = match polygon {
+        let height = self.height as i32;
+        let nix = match polygon {
             Polygon::Triangle => match side {
                 Side::Bottom => (y + 1) * width + x,
                 Side::TopLeft => (y - 1) * width + (x - 1),
@@ -328,10 +343,19 @@ where
                 _ => panic!(" invalid side {side:?} for {polygon:?}"),
             },
         };
-        if index >= 0 {
-            let index = index as usize;
-            if index < self.cells.len() {
-                Some(index)
+        // Ensure neighbor_index is within valid range
+        if nix >= 0 && nix < (width * height) {
+            let (nx, ny) = cast_tuple!(usize, i32, self.index_to_xy(nix as usize));
+
+            if nx >= 0
+                && nx < width
+                && ny >= 0
+                && ny < height
+                // make sure we didn't wrap around the grid
+                && x.abs_diff(nx) <= 1
+                && y.abs_diff(ny) <= 1
+            {
+                Some(nix as usize)
             } else {
                 // overflow
                 None
@@ -440,6 +464,7 @@ where
                     unreachable!("bad compatibility map?")
                 };
                 if !compatible.contains(&neighbor_tile) {
+                    println!("ix: {ix},  nix: {nix}, tile: {tile:?}, compatible: {compatible:?}");
                     invalids.insert((x, y));
                 }
             }
