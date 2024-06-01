@@ -524,12 +524,6 @@ type HexSegmentTuple = (
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Reflect)]
 struct Hex(HexSegmentTuple);
 
-impl Display for Hex {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        todo!()
-    }
-}
-
 impl TileInstance for Hex {}
 
 impl Tile<Self> for Hex {

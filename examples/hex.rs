@@ -629,17 +629,6 @@ impl HexTile {
     }
 }
 
-impl Display for HexTile {
-    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        let str = match self {
-            HexTile::GrassWater(_) => "O",
-            // Hex::Grass => "G",
-            // Hex::Water => "W",
-        };
-        write!(f, "{str}")
-    }
-}
-
 impl TileInstance for HexTile {}
 
 impl Tile<Self> for HexTile {
