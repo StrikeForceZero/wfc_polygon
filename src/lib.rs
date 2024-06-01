@@ -93,6 +93,21 @@ pub enum Side {
     BottomRight,
 }
 
+impl Side {
+    pub fn opposite(&self) -> Self {
+        match self {
+            Self::Top => Self::Bottom,
+            Self::Bottom => Self::Top,
+            Self::Left => Self::Right,
+            Self::Right => Self::Left,
+            Self::TopLeft => Self::BottomRight,
+            Self::TopRight => Self::BottomLeft,
+            Self::BottomLeft => Self::TopRight,
+            Self::BottomRight => Self::TopLeft,
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub enum TriangleSide {
     TopRight,
