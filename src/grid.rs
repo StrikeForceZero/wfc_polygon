@@ -29,7 +29,7 @@ where
     T: Tile<T>,
 {
     type Type: Into<Polygon> + Copy + Default + Ord;
-    type SideType: Into<Side> + Copy + Ord + TryFrom<Side>;
+    type SideType: Into<Side> + Copy + Ord + TryFrom<Side> + Debug;
     /*
        TODO: we could default impl here if we make everything,
            constrained to: <<GT as GridType<T>>::SideType as TryFrom<Side>>::Error: Debug,
