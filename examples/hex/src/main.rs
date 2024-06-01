@@ -407,14 +407,14 @@ impl Plugin for SubPlugin {
             .init_resource::<HexGrid>()
             .add_systems(Startup, setup)
             .add_systems(Update,
-                 (
-                    ui,
-                    update,
-                    input_handler,
-                ).chain()
+                         (
+                             ui,
+                             update,
+                             input_handler,
+                         ).chain()
             )
             .add_systems(PostUpdate, invalid_hex_handler)
-            /* rustfmt next line semi-colon */
+        /* rustfmt next line semi-colon */
         ;
     }
 }

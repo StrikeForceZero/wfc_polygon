@@ -1,0 +1,11 @@
+[package]
+name = "hex"
+version = "0.0.0"
+edition = "2021"
+
+[dependencies]
+wfc_polygon = { path = "../../" }
+bevy = "0.13"
+bevy-inspector-egui = "0.24.0"
+bevy_mod_picking = "0.18.2"
+itertools = "0.13.0"

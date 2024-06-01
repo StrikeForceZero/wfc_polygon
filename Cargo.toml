@@ -4,16 +4,12 @@ version = "0.0.0"
 edition = "2021"
 authors = ["Brett Striker <strikeforcezero@gmail.com"]
 
+[workspace]
+members = ["examples/*"]
+
 [dev-dependencies]
 anyhow = "1"
-bevy = "0.13"
-bevy-inspector-egui = "0.24.0"
-bevy_mod_picking = "0.18.2"
 
 [dependencies]
 rand = "0.8"
 thiserror = "1"
-itertools = "0.13.0"
-
-[[example]]
-name = "hex"
