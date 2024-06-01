@@ -14,9 +14,9 @@ use bevy_mod_picking::highlight::InitialHighlight;
 use bevy_mod_picking::prelude::*;
 use itertools::iproduct;
 
-use wfc_polygon::{HexagonType, Polygon, Side, Tile, TileInstance};
+use wfc_polygon::{FlatTopHexSide, HexagonType, Polygon, Side, Tile, TileInstance};
 use wfc_polygon::compatibility_map::CompatibilityMap;
-use wfc_polygon::grid::Grid;
+use wfc_polygon::grid::{FlatTopHexGrid, Grid, GridType};
 use wfc_polygon::wfc::WaveFunctionCollapse;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
@@ -27,8 +27,8 @@ enum Mode {
 
 const MODE: Mode = Mode::Full;
 
-#[derive(Debug, Default, Resource)]
-struct HexGrid(Option<WaveFunctionCollapse<Hex>>);
+#[derive(Default, Resource)]
+struct HexGrid(Option<WaveFunctionCollapse<FlatTopHexGrid, Hex>>);
 
 #[derive(Debug, Copy, Clone, Reflect, Component, PartialEq, Eq, Hash)]
 struct HexPos(UVec2);
@@ -169,7 +169,7 @@ fn gen_map(
     }
 
     let mut wfc = WaveFunctionCollapse::new_with_compatibility(
-        Grid::new(Polygon::Hexagon(HexagonType::FlatTop), 25, 25),
+        FlatTopHexGrid::new(25, 25),
         Hex::get_compatibility_map().expect("expected compat map"),
     );
 
@@ -523,13 +523,13 @@ impl HexSegment {
     }
 }
 
-const FLAT_HEX_SIDES: [Side; 6] = [
-    Side::Top,
-    Side::TopRight,
-    Side::BottomRight,
-    Side::Bottom,
-    Side::BottomLeft,
-    Side::TopLeft,
+const FLAT_HEX_SIDES: [FlatTopHexSide; 6] = [
+    FlatTopHexSide::Top,
+    FlatTopHexSide::TopRight,
+    FlatTopHexSide::BottomRight,
+    FlatTopHexSide::Bottom,
+    FlatTopHexSide::BottomLeft,
+    FlatTopHexSide::TopLeft,
 ];
 
 type HexSegmentTuple = (
@@ -577,46 +577,48 @@ impl Hex {
                 .collect(),
         }
     }
-    fn valid_sets_pattern(sides: impl Into<FlatHexSegments>) -> Vec<(Side, FlatHexSegmentsOpt)> {
+    fn valid_sets_pattern(
+        sides: impl Into<FlatHexSegments>,
+    ) -> Vec<(FlatTopHexSide, FlatHexSegmentsOpt)> {
         let sides: FlatHexSegments = sides.into();
         vec![
             (
-                Side::Top,
+                FlatTopHexSide::Top,
                 FlatHexSegmentsOpt {
                     top: Some(sides.bottom),
                     ..Default::default()
                 },
             ),
             (
-                Side::TopRight,
+                FlatTopHexSide::TopRight,
                 FlatHexSegmentsOpt {
                     top_right: Some(sides.bottom_left),
                     ..Default::default()
                 },
             ),
             (
-                Side::TopLeft,
+                FlatTopHexSide::TopLeft,
                 FlatHexSegmentsOpt {
                     top_left: Some(sides.bottom_right),
                     ..Default::default()
                 },
             ),
             (
-                Side::Bottom,
+                FlatTopHexSide::Bottom,
                 FlatHexSegmentsOpt {
                     bottom: Some(sides.top),
                     ..Default::default()
                 },
             ),
             (
-                Side::BottomRight,
+                FlatTopHexSide::BottomRight,
                 FlatHexSegmentsOpt {
                     bottom_right: Some(sides.top_left),
                     ..Default::default()
                 },
             ),
             (
-                Side::BottomLeft,
+                FlatTopHexSide::BottomLeft,
                 FlatHexSegmentsOpt {
                     bottom_left: Some(sides.top_right),
                     ..Default::default()
@@ -624,8 +626,8 @@ impl Hex {
             ),
         ]
     }
-    fn get_compatibility_map() -> anyhow::Result<CompatibilityMap<Self>> {
-        let mut map = CompatibilityMap::new(Polygon::Hexagon(HexagonType::FlatTop));
+    fn get_compatibility_map() -> anyhow::Result<CompatibilityMap<FlatTopHexGrid, Self>> {
+        let mut map = CompatibilityMap::new();
         let permutations = Self::permutations();
         for &combination in permutations.iter() {
             for (side, pattern) in Self::valid_sets_pattern(combination) {
@@ -690,25 +692,25 @@ impl FlatHexSegments {
             _ => panic!("invalid index {index}, expected 0..=5"),
         })
     }
-    pub fn get_side(&self, side: Side) -> HexSegment {
+    pub fn get_side(&self, side: FlatTopHexSide) -> HexSegment {
         match side {
-            Side::Top => self.top,
-            Side::TopRight => self.top_right,
-            Side::BottomRight => self.bottom_right,
-            Side::Bottom => self.bottom,
-            Side::BottomLeft => self.bottom_left,
-            Side::TopLeft => self.top_left,
+            FlatTopHexSide::Top => self.top,
+            FlatTopHexSide::TopRight => self.top_right,
+            FlatTopHexSide::BottomRight => self.bottom_right,
+            FlatTopHexSide::Bottom => self.bottom,
+            FlatTopHexSide::BottomLeft => self.bottom_left,
+            FlatTopHexSide::TopLeft => self.top_left,
             _ => panic!("invalid side {side:?}"),
         }
     }
-    pub fn adjacent_segments(&self, side: Side) -> [Side; 2] {
+    pub fn adjacent_segments(&self, side: FlatTopHexSide) -> [FlatTopHexSide; 2] {
         match side {
-            Side::Top => [Side::TopLeft, Side::TopRight],
-            Side::TopRight => [Side::Top, Side::BottomRight],
-            Side::BottomRight => [Side::TopRight, Side::BottomLeft],
-            Side::Bottom => [Side::BottomRight, Side::BottomLeft],
-            Side::BottomLeft => [Side::BottomRight, Side::TopLeft],
-            Side::TopLeft => [Side::BottomLeft, Side::Top],
+            FlatTopHexSide::Top => [FlatTopHexSide::TopLeft, FlatTopHexSide::TopRight],
+            FlatTopHexSide::TopRight => [FlatTopHexSide::Top, FlatTopHexSide::BottomRight],
+            FlatTopHexSide::BottomRight => [FlatTopHexSide::TopRight, FlatTopHexSide::BottomLeft],
+            FlatTopHexSide::Bottom => [FlatTopHexSide::BottomRight, FlatTopHexSide::BottomLeft],
+            FlatTopHexSide::BottomLeft => [FlatTopHexSide::BottomRight, FlatTopHexSide::TopLeft],
+            FlatTopHexSide::TopLeft => [FlatTopHexSide::BottomLeft, FlatTopHexSide::Top],
             _ => panic!("invalid side {side:?}"),
         }
     }
@@ -749,53 +751,51 @@ struct FlatHexSegmentsOpt {
 }
 
 impl FlatHexSegmentsOpt {
-    fn is_match(&self, side: Side, other: Self) -> bool {
+    fn is_match(&self, side: FlatTopHexSide, other: Self) -> bool {
         match side {
-            Side::Top => self.top.is_some_and_same(&other.top),
-            Side::TopLeft => self.top_left.is_some_and_same(&other.top_left),
-            Side::TopRight => self.top_right.is_some_and_same(&other.top_right),
-            Side::BottomLeft => self.bottom_left.is_some_and_same(&other.bottom_left),
-            Side::BottomRight => self.bottom_right.is_some_and_same(&other.bottom_right),
-            Side::Bottom => self.bottom.is_some_and_same(&other.bottom),
-            _ => panic!("bad side {side:?}"),
+            FlatTopHexSide::Top => self.top.is_some_and_same(&other.top),
+            FlatTopHexSide::TopLeft => self.top_left.is_some_and_same(&other.top_left),
+            FlatTopHexSide::TopRight => self.top_right.is_some_and_same(&other.top_right),
+            FlatTopHexSide::BottomLeft => self.bottom_left.is_some_and_same(&other.bottom_left),
+            FlatTopHexSide::BottomRight => self.bottom_right.is_some_and_same(&other.bottom_right),
+            FlatTopHexSide::Bottom => self.bottom.is_some_and_same(&other.bottom),
         }
     }
-    fn is_valid_adjacent(&self, side: Side, other: Self) -> bool {
+    fn is_valid_adjacent(&self, side: FlatTopHexSide, other: Self) -> bool {
         match side {
-            Side::Top => self.top.zip(other.top).map_or(false, |(seg, other_seg)| {
+            FlatTopHexSide::Top => self.top.zip(other.top).map_or(false, |(seg, other_seg)| {
                 seg.compatible().contains(&other_seg)
             }),
-            Side::TopLeft => self
+            FlatTopHexSide::TopLeft => self
                 .top_left
                 .zip(other.top_left)
                 .map_or(false, |(seg, other_seg)| {
                     seg.compatible().contains(&other_seg)
                 }),
-            Side::TopRight => self
+            FlatTopHexSide::TopRight => self
                 .top_right
                 .zip(other.top_right)
                 .map_or(false, |(seg, other_seg)| {
                     seg.compatible().contains(&other_seg)
                 }),
-            Side::BottomLeft => self
+            FlatTopHexSide::BottomLeft => self
                 .bottom_left
                 .zip(other.bottom_left)
                 .map_or(false, |(seg, other_seg)| {
                     seg.compatible().contains(&other_seg)
                 }),
-            Side::BottomRight => self
+            FlatTopHexSide::BottomRight => self
                 .bottom_right
                 .zip(other.bottom_right)
                 .map_or(false, |(seg, other_seg)| {
                     seg.compatible().contains(&other_seg)
                 }),
-            Side::Bottom => self
+            FlatTopHexSide::Bottom => self
                 .bottom
                 .zip(other.bottom)
                 .map_or(false, |(seg, other_seg)| {
                     seg.compatible().contains(&other_seg)
                 }),
-            _ => panic!("bad side {side:?}"),
         }
     }
 }

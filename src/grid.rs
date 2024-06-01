@@ -1,8 +1,11 @@
-use std::fmt::{Display, Formatter};
+use std::fmt::{Debug, Display, Formatter};
 
 use thiserror::Error;
 
-use crate::{HexagonType, Polygon, Side, Tile};
+use crate::{
+    FlatTopHexagon, FlatTopHexSide, HexagonType, PointyTopHexagon, PointyTopHexSide, Polygon, Side,
+    Square, SquareSide, Tile, TileInstance, Triangle, TriangleSide,
+};
 use crate::compatibility_map::CompatibilityMapError;
 
 macro_rules! cast_tuple {
@@ -18,6 +21,79 @@ macro_rules! cast_tuple {
     }};
 }
 
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+pub struct GridTypeHolder<T: ?Sized>(T);
+
+pub trait GridType<T>
+where
+    T: Tile<T>,
+{
+    type Type: Into<Polygon> + Copy + Default + Ord;
+    type SideType: Into<Side> + Copy + Ord + TryFrom<Side>;
+    /*
+       TODO: we could default impl here if we make everything,
+           constrained to: <<GT as GridType<T>>::SideType as TryFrom<Side>>::Error: Debug,
+           Grid::new(Self::Type::default(), width, height)
+    */
+    fn new(width: usize, height: usize) -> Grid<Self, T>;
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+pub struct TriangleGrid;
+
+impl<T> GridType<T> for TriangleGrid
+where
+    T: Tile<T>,
+{
+    type Type = Triangle;
+    type SideType = TriangleSide;
+    fn new(width: usize, height: usize) -> Grid<Self, T> {
+        Grid::new(Triangle, width, height)
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+pub struct SquareGrid;
+
+impl<T> GridType<T> for SquareGrid
+where
+    T: Tile<T>,
+{
+    type Type = Square;
+    type SideType = SquareSide;
+    fn new(width: usize, height: usize) -> Grid<Self, T> {
+        Grid::new(Square, width, height)
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+pub struct FlatTopHexGrid;
+
+impl<T> GridType<T> for FlatTopHexGrid
+where
+    T: Tile<T>,
+{
+    type Type = FlatTopHexagon;
+    type SideType = FlatTopHexSide;
+    fn new(width: usize, height: usize) -> Grid<Self, T> {
+        Grid::new(FlatTopHexagon, width, height)
+    }
+}
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+pub struct PointyTopHexGrid;
+
+impl<T> GridType<T> for PointyTopHexGrid
+where
+    T: Tile<T>,
+{
+    type Type = PointyTopHexagon;
+    type SideType = PointyTopHexSide;
+    fn new(width: usize, height: usize) -> Grid<Self, T> {
+        Grid::new(PointyTopHexagon, width, height)
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Error)]
 pub enum GridError {
     #[error("GridError: {0:?}")]
@@ -26,19 +102,25 @@ pub enum GridError {
     CompatibilityViolation,
 }
 
-#[derive(Debug, Clone)]
-pub struct Grid<T> {
-    polygon: Polygon,
+#[derive(Clone)]
+pub struct Grid<GT, T>
+where
+    GT: ?Sized + GridType<T>,
+    T: Tile<T>,
+{
+    polygon: GT::Type,
     width: usize,
     height: usize,
     cells: Vec<Option<T>>,
 }
 
-impl<T> Grid<T>
+impl<GT, T> Grid<GT, T>
 where
+    GT: ?Sized + GridType<T>,
     T: Tile<T>,
+    <<GT as GridType<T>>::SideType as TryFrom<Side>>::Error: Debug,
 {
-    pub fn new(polygon: Polygon, width: usize, height: usize) -> Self {
+    pub fn new(polygon: GT::Type, width: usize, height: usize) -> Grid<GT, T> {
         Self {
             polygon,
             width,
@@ -46,8 +128,7 @@ where
             cells: vec![None; width * height],
         }
     }
-
-    pub fn polygon(&self) -> Polygon {
+    pub fn polygon(&self) -> GT::Type {
         self.polygon
     }
 
@@ -100,7 +181,7 @@ where
         let y = y as i32;
         let width = self.width as i32;
         let height = self.height as i32;
-        let polygon = self.polygon;
+        let polygon = self.polygon.into();
         let nix = match polygon {
             Polygon::Triangle => match side {
                 Side::Bottom => (y + 1) * width + x,
@@ -205,8 +286,8 @@ where
         }
     }
 
-    pub fn neighbor_indexes(&self, x: usize, y: usize) -> Vec<(Side, Option<usize>)> {
-        match self.polygon {
+    fn _neighbor_indexes(&self, x: usize, y: usize) -> Vec<(Side, Option<usize>)> {
+        match self.polygon.into() {
             Polygon::Triangle => [Side::TopLeft, Side::TopRight, Side::Bottom]
                 .map(|side| (side, self.get_neighbor_index(x, y, side)))
                 .to_vec(),
@@ -236,7 +317,19 @@ where
         }
     }
 
-    pub fn neighbors(&self, x: usize, y: usize) -> Vec<(Side, Option<T>)> {
+    pub fn neighbor_indexes(&self, x: usize, y: usize) -> Vec<(GT::SideType, Option<usize>)> {
+        self._neighbor_indexes(x, y)
+            .into_iter()
+            .map(|(side, nix_opt)| {
+                (
+                    GT::SideType::try_from(side).unwrap_or_else(|err| unreachable!("{err:?}")),
+                    nix_opt,
+                )
+            })
+            .collect::<Vec<_>>()
+    }
+
+    pub fn neighbors(&self, x: usize, y: usize) -> Vec<(GT::SideType, Option<T>)> {
         self.neighbor_indexes(x, y)
             .into_iter()
             .map(|(side, index)| (side, index.and_then(|index| self.get_by_index(index))))
@@ -256,9 +349,11 @@ where
     }
 }
 
-impl<T> Display for Grid<T>
+impl<GT, T> Display for Grid<GT, T>
 where
+    GT: ?Sized + GridType<T>,
     T: Tile<T> + Display,
+    <<GT as GridType<T>>::SideType as TryFrom<Side>>::Error: Debug,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         for y in 0..self.height {
@@ -319,18 +414,21 @@ mod tests {
             }
         }
 
-        let mut compatibility = CompatibilityMap::new(Polygon::Square);
+        let mut compatibility: CompatibilityMap<SquareGrid, MyTile> = CompatibilityMap::new();
 
         for tile in MyTile::all() {
-            for side in [Side::Top, Side::Right, Side::Bottom, Side::Left] {
+            for side in [
+                SquareSide::Top,
+                SquareSide::Right,
+                SquareSide::Bottom,
+                SquareSide::Left,
+            ] {
                 compatibility.add(tile, side, tile.compatible())?;
             }
         }
 
-        let mut wfc = WaveFunctionCollapse::new_with_compatibility(
-            Grid::new(Polygon::Square, 10, 10),
-            compatibility,
-        );
+        let mut wfc =
+            WaveFunctionCollapse::new_with_compatibility(SquareGrid::new(10, 10), compatibility);
         let max_retries = 10;
 
         for _ in 1..=max_retries {
@@ -377,18 +475,21 @@ mod tests {
             }
         }
 
-        let mut compatibility = CompatibilityMap::new(Polygon::Square);
+        let mut compatibility: CompatibilityMap<SquareGrid, MyTile> = CompatibilityMap::new();
 
         for tile in MyTile::all() {
-            for side in [Side::Top, Side::Right, Side::Bottom, Side::Left] {
+            for side in [
+                SquareSide::Top,
+                SquareSide::Right,
+                SquareSide::Bottom,
+                SquareSide::Left,
+            ] {
                 compatibility.add(tile, side, tile.compatible())?;
             }
         }
 
-        let mut wfc = WaveFunctionCollapse::new_with_compatibility(
-            Grid::new(Polygon::Square, 2, 1),
-            compatibility,
-        );
+        let mut wfc =
+            WaveFunctionCollapse::new_with_compatibility(SquareGrid::new(2, 1), compatibility);
 
         // don't allow empty cells
         assert_eq!(wfc.is_valid(false), Ok(false));

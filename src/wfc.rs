@@ -1,31 +1,41 @@
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashSet, VecDeque};
+use std::fmt::Debug;
 
 use rand::prelude::*;
 use rand::thread_rng;
 
+use crate::{Side, Tile};
 use crate::compatibility_map::CompatibilityMap;
-use crate::grid::{Grid, GridError};
-use crate::Tile;
+use crate::grid::{Grid, GridError, GridType};
 
-#[derive(Debug, Clone)]
-pub struct WaveFunctionCollapse<T> {
-    grid: Grid<T>,
+#[derive(Clone)]
+pub struct WaveFunctionCollapse<GT, T>
+where
+    GT: ?Sized + GridType<T>,
+    T: Tile<T>,
+{
+    grid: Grid<GT, T>,
     possibilities: Vec<HashSet<T>>,
-    compatibility: CompatibilityMap<T>,
+    compatibility: CompatibilityMap<GT, T>,
     propagation_queue: VecDeque<(usize, usize)>,
     entropy_queue: BinaryHeap<Reverse<(usize, usize, usize)>>,
 }
 
-impl<T> WaveFunctionCollapse<T>
+impl<GT, T> WaveFunctionCollapse<GT, T>
 where
+    GT: ?Sized + GridType<T>,
     T: Tile<T>,
+    <<GT as GridType<T>>::SideType as TryFrom<Side>>::Error: Debug,
 {
-    pub fn new(grid: Grid<T>) -> Self {
-        let compatibility = CompatibilityMap::new(grid.polygon());
+    pub fn new(grid: Grid<GT, T>) -> Self {
+        let compatibility = CompatibilityMap::new();
         Self::new_with_compatibility(grid, compatibility)
     }
-    pub fn new_with_compatibility(grid: Grid<T>, compatibility: CompatibilityMap<T>) -> Self {
+    pub fn new_with_compatibility(
+        grid: Grid<GT, T>,
+        compatibility: CompatibilityMap<GT, T>,
+    ) -> Self {
         let width = grid.width();
         let height = grid.height();
         let possibilities: Vec<HashSet<T>> = vec![T::all().into_iter().collect(); width * height];
@@ -51,11 +61,11 @@ where
         }
     }
 
-    pub fn grid(&self) -> &Grid<T> {
+    pub fn grid(&self) -> &Grid<GT, T> {
         &self.grid
     }
 
-    pub fn grid_mut(&mut self) -> &mut Grid<T> {
+    pub fn grid_mut(&mut self) -> &mut Grid<GT, T> {
         &mut self.grid
     }
 
