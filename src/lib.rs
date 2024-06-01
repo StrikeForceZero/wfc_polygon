@@ -57,10 +57,7 @@ pub enum Side {
     BottomRight,
 }
 
-pub trait TileInstance:
-    Debug + Display + Clone + Copy + PartialEq + PartialOrd + Ord + Hash
-{
-}
+pub trait TileInstance: Debug + Clone + Copy + PartialEq + PartialOrd + Ord + Hash {}
 
 pub trait Tile<T: TileInstance>: TileInstance {
     fn all() -> Vec<T>;
@@ -548,7 +545,7 @@ where
 
 impl<T> Display for Grid<T>
 where
-    T: Tile<T>,
+    T: Tile<T> + Display,
 {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         for y in 0..self.height {
