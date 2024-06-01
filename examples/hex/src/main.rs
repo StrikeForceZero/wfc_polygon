@@ -14,10 +14,13 @@ use bevy_mod_picking::highlight::InitialHighlight;
 use bevy_mod_picking::prelude::*;
 use itertools::iproduct;
 
+use component::{HexData, HexGrid, HexInvalid, HexPos, HexPossibilities, InnerHex};
 use wfc_polygon::{FlatTopHexSide, Side, Tile, TileInstance};
 use wfc_polygon::compatibility_map::CompatibilityMap;
 use wfc_polygon::grid::{FlatTopHexGrid, GridType};
 use wfc_polygon::wfc::WaveFunctionCollapse;
+
+mod component;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 enum Mode {
@@ -26,18 +29,6 @@ enum Mode {
 }
 
 const MODE: Mode = Mode::Full;
-
-#[derive(Default, Resource)]
-struct HexGrid(Option<WaveFunctionCollapse<FlatTopHexGrid, Hex>>);
-
-#[derive(Debug, Copy, Clone, Reflect, Component, PartialEq, Eq, Hash)]
-struct HexPos(UVec2);
-
-#[derive(Debug, Clone, Reflect, Component)]
-struct HexData(Option<FlatHexSegments>);
-
-#[derive(Debug, Clone, Reflect, Component)]
-struct HexPossibilities(HashSet<Hex>);
 
 fn hex_mesh(sides: Option<FlatHexSegments>) -> Vec<(Mesh, Color)> {
     // pointy top
@@ -380,14 +371,8 @@ fn invalid_hex_handler(
     }
 }
 
-#[derive(Debug, Copy, Clone, Component, Reflect)]
-struct InnerHex;
-
 #[derive(Debug, Default, Reflect, Resource)]
 struct HexPossibilitiesCache(HashMap<HexPos, (HexData, HexPossibilities)>);
-
-#[derive(Debug, Default, Reflect, Component)]
-struct HexInvalid;
 
 struct SubPlugin;
 
