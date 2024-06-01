@@ -308,25 +308,38 @@ fn update(
     mut hex_possibilities_cache: ResMut<HexPossibilitiesCache>,
     hex_query: Query<(&HexPos, &HexData, &HexPossibilities, &Children)>,
     pick_query: Query<(&Parent, Ref<PickSelection>), (Changed<PickSelection>, With<InnerHex>)>,
+    child_query: Query<Option<Ref<PickSelection>>>,
 ) {
     for (parent, selection) in pick_query.iter() {
         let Ok((pos, data, possibilities, children)) = hex_query.get(parent.get()) else {
             continue;
         };
-        if selection.is_changed() {
-            if selection.is_selected {
+        if !selection.is_changed() {
+            continue;
+        }
+        if !selection.is_selected {
+            hex_possibilities_cache.0.remove(pos);
+            continue;
+        }
+
+        let mut child_inserted = false;
+        for child in children.iter() {
+            let Ok(selection) = child_query.get(*child) else {
+                continue;
+            };
+            if selection.map_or(false, |selection| selection.is_selected) {
+                continue;
+            }
+            commands
+                .entity(*child)
+                .insert(PickSelection { is_selected: true });
+            if !child_inserted {
+                child_inserted = true;
                 println!("updated cache for {pos:?}");
                 hex_possibilities_cache
                     .0
                     .entry(*pos)
                     .or_insert_with(|| (data.clone(), possibilities.clone()));
-                for child in children.iter() {
-                    commands
-                        .entity(*child)
-                        .insert(PickSelection { is_selected: true });
-                }
-            } else {
-                hex_possibilities_cache.0.remove(pos);
             }
         }
     }
