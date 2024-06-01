@@ -163,6 +163,13 @@ where
         }
     }
 
+    pub fn unset(&mut self, x: usize, y: usize) {
+        if x < self.width && y < self.height {
+            let index = self.xy_to_index(x, y);
+            self.cells[index] = None;
+        }
+    }
+
     #[inline]
     pub fn xy_to_index(&self, x: usize, y: usize) -> usize {
         y * self.width + x
