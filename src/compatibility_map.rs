@@ -5,6 +5,10 @@ use thiserror::Error;
 use crate::{HexagonType, Polygon, Side, Tile};
 use crate::grid::GridType;
 
+/*
+    TODO: now that we have constraints on polygon and side we could potentially remove InvalidSide
+        and remove result from anything that potentially could return it
+*/
 #[derive(Debug, Copy, Clone, PartialEq, PartialOrd, Ord, Eq, Error)]
 pub enum CompatibilityMapError<T> {
     #[error("{1:?} is an invalid side for {0:?}")]
@@ -131,5 +135,49 @@ where
     }
     pub fn iter(&self) -> impl Iterator<Item = (&CompatibilityMapKey<GT, T>, &HashSet<T>)> {
         self.compatibility.iter()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use crate::{SquareSide, Tile, TileInstance};
+    use crate::grid::SquareGrid;
+
+    use super::*;
+
+    #[test]
+    fn test_check_contradiction() {
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+        enum Id {
+            A,
+            B,
+        }
+        impl TileInstance for Id {}
+        impl Tile<Self> for Id {
+            fn all() -> Vec<Self> {
+                vec![Self::A, Self::B]
+            }
+        }
+        let mut map = CompatibilityMap::<SquareGrid, Id>::new();
+
+        map.add(Id::A, SquareSide::Right, vec![Id::B])
+            .expect("failed to add rule");
+        map.add(Id::B, SquareSide::Left, vec![])
+            .expect("failed to add rule");
+
+        assert_eq!(
+            map.check_contradictions(),
+            Err(CompatibilityMapError::Contradiction(
+                Id::A,
+                SquareSide::Right.into(),
+                Id::B,
+                SquareSide::Left.into(),
+            ))
+        );
+
+        map.add(Id::B, SquareSide::Left, vec![Id::A])
+            .expect("failed to add rule");
+
+        assert_eq!(map.check_contradictions(), Ok(()));
     }
 }
