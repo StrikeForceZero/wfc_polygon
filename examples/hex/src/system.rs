@@ -12,6 +12,8 @@ use wfc_polygon::wfc::WaveFunctionCollapse;
 use crate::*;
 use crate::color_wrapper::ColorWrapper;
 use crate::component::*;
+use crate::hex::map::FlatTopHexagonalSegmentIdMap;
+use crate::hex::tile_id::HexTileId;
 use crate::resource::*;
 
 pub(crate) fn setup(gen_map_system_id: Res<GenMapSystemId>, mut commands: Commands) {
@@ -42,7 +44,7 @@ pub(crate) fn gen_map(
 
     let mut wfc = WaveFunctionCollapse::new_with_compatibility(
         FlatTopHexGrid::new(25, 25),
-        Hex::get_compatibility_map(),
+        HexTileId::get_compatibility_map(),
     );
 
     /*grid.set(
@@ -59,7 +61,7 @@ pub(crate) fn gen_map(
     );*/
 
     if MODE == Mode::Full {
-        for ((_, hex, side), patterns) in Hex::get_compatibility_map().iter() {
+        for ((_, hex, side), patterns) in HexTileId::get_compatibility_map().iter() {
             println!(
                 "{:?} {side:?} {:?}",
                 hex.0 .0,
@@ -107,13 +109,18 @@ pub(crate) fn gen_map(
         if x % 2 == 0 {
             position.y += 0.9 * SCALE;
         }
-        let hex_sides: Option<FlatHexSegments> = (*cell).map(|tile| tile.into());
-        let mesh_color_tuples = crate::hex_mesh(hex_sides);
+        let hex_sides: Option<FlatTopHexagonalSegmentIdMap> = (*cell).map(|tile| tile.into());
+        let mesh_color_tuples = crate::hex::mesh::hex_mesh(hex_sides);
         let id = commands
             .spawn((
                 HexData(hex_sides),
                 HexPos(UVec2::new(x as u32, y as u32)),
-                HexPossibilities(possibilities.iter().cloned().collect::<HashSet<Hex>>()),
+                HexPossibilities(
+                    possibilities
+                        .iter()
+                        .cloned()
+                        .collect::<HashSet<HexTileId>>(),
+                ),
                 SpatialBundle::from_transform(Transform::from_translation(position)),
             ))
             .with_children(|children| {
