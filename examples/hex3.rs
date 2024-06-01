@@ -19,6 +19,14 @@ use itertools::iproduct;
 
 use wfc_polygon::{CompatibilityMap, Grid, HexagonType, Polygon, Side, Tile, TileInstance};
 
+#[derive(Debug, Copy, Clone, PartialEq)]
+enum Mode {
+    Full,
+    Segments,
+}
+
+const MODE: Mode = Mode::Full;
+
 #[derive(Debug, Default, Resource)]
 struct HexGrid(Option<Grid<Hex>>);
 
@@ -179,12 +187,14 @@ fn gen_map(
         )),
     );*/
 
-    for ((_, hex, side), patterns) in Hex::get_compatibility_map().unwrap().iter() {
-        println!(
-            "{:?} {side:?} {:?}",
-            hex.0 .0,
-            patterns.iter().map(|h| h.0 .0).collect::<Vec<_>>()
-        );
+    if MODE == Mode::Full {
+        for ((_, hex, side), patterns) in Hex::get_compatibility_map().unwrap().iter() {
+            println!(
+                "{:?} {side:?} {:?}",
+                hex.0 .0,
+                patterns.iter().map(|h| h.0 .0).collect::<Vec<_>>()
+            );
+        }
     }
 
     let max_retries = 100;
@@ -560,11 +570,15 @@ impl Hex {
             hex_types.iter().cloned()
         );
 
-        permutations
-            .map(|(a, b, c, d, e, f)| Hex((a, b, c, d, e, f)))
-            .filter(|&hex| FlatHexSegments::from(hex).is_all_segments_same())
-            // .filter(|&hex| FlatHexSegments::from(hex).has_valid_segments())
-            .collect()
+        let iter = permutations.map(|(a, b, c, d, e, f)| Hex((a, b, c, d, e, f)));
+        match MODE {
+            Mode::Full => iter
+                .filter(|&hex| FlatHexSegments::from(hex).is_all_segments_same())
+                .collect(),
+            Mode::Segments => iter
+                .filter(|&hex| FlatHexSegments::from(hex).has_valid_segments())
+                .collect(),
+        }
     }
     fn valid_sets_pattern(sides: impl Into<FlatHexSegments>) -> Vec<(Side, FlatHexSegmentsOpt)> {
         let sides: FlatHexSegments = sides.into();
