@@ -20,6 +20,7 @@ use itertools::iproduct;
 use wfc_polygon::{HexagonType, Polygon, Side, Tile, TileInstance};
 use wfc_polygon::compatibility_map::CompatibilityMap;
 use wfc_polygon::grid::Grid;
+use wfc_polygon::wfc::WaveFunctionCollapse;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
 enum Mode {
@@ -30,7 +31,7 @@ enum Mode {
 const MODE: Mode = Mode::Full;
 
 #[derive(Debug, Default, Resource)]
-struct HexGrid(Option<Grid<Hex>>);
+struct HexGrid(Option<WaveFunctionCollapse<Hex>>);
 
 #[derive(Debug, Copy, Clone, Reflect, Component, PartialEq, Eq, Hash)]
 struct HexPos(UVec2);
@@ -170,9 +171,8 @@ fn gen_map(
         commands.entity(entity).despawn_recursive();
     }
 
-    let mut grid = Grid::new(
-        25,
-        25,
+    let mut wfc = WaveFunctionCollapse::new_with_compatibility(
+        Grid::new(Polygon::Hexagon(HexagonType::FlatTop), 25, 25),
         Hex::get_compatibility_map().expect("expected compat map"),
     );
 
@@ -202,23 +202,20 @@ fn gen_map(
     let max_retries = 100;
     for n in 1..=max_retries {
         println!("attempt {n}/{max_retries}");
-        if grid
-            .collapse(Polygon::Hexagon(HexagonType::FlatTop))
-            .expect("collapse failed")
-        {
+        if wfc.collapse().expect("collapse failed") {
             println!("collapse successful");
             break;
         }
     }
 
-    let is_grid_valid = match grid.is_valid(false, Polygon::Hexagon(HexagonType::FlatTop)) {
+    let is_grid_valid = match wfc.is_valid(false) {
         Ok(is_valid) => is_valid,
         Err(err) => panic!("failed to validate - {err}"),
     };
     println!("is valid: {is_grid_valid}");
 
     let invalids: HashSet<(usize, usize)> = if !is_grid_valid {
-        grid.get_invalids(false, Polygon::Hexagon(HexagonType::FlatTop))
+        wfc.get_invalids(false)
             .expect("failed to get invalids")
             .into_iter()
             .collect()
@@ -226,18 +223,19 @@ fn gen_map(
         HashSet::new()
     };
 
-    let empty_cell_count = grid.cells().iter().filter(|c| c.is_none()).count();
+    let empty_cell_count = wfc.grid().cells().iter().filter(|c| c.is_none()).count();
     println!("empty cells: {empty_cell_count}");
 
     let mut color_materials: HashMap<ColorWrapper, Handle<ColorMaterial>> = HashMap::new();
-    for (ix, (cell, possibilities)) in grid
+    for (ix, (cell, possibilities)) in wfc
+        .grid()
         .cells()
         .iter()
-        .zip(grid.cached_possibilities().iter())
+        .zip(wfc.cached_possibilities().iter())
         .into_iter()
         .enumerate()
     {
-        let (x, y) = grid.index_to_xy(ix);
+        let (x, y) = wfc.grid().index_to_xy(ix);
         let is_hex_invalid = invalids.contains(&(x, y));
         let translate_x = x as f32 * 1.5;
         let translate_y = y as f32 * 1.732;
@@ -300,7 +298,7 @@ fn gen_map(
             commands.entity(id).insert(HexInvalid);
         }
     }
-    hex_grid.0 = Some(grid);
+    hex_grid.0 = Some(wfc);
 }
 
 fn input_handler(

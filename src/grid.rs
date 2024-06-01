@@ -1,13 +1,9 @@
-use std::cmp::Reverse;
-use std::collections::{BinaryHeap, HashSet, VecDeque};
 use std::fmt::{Display, Formatter};
 
-use rand::prelude::SliceRandom;
-use rand::thread_rng;
 use thiserror::Error;
 
-use crate::{HexagonType, Polygon, Side, Tile, TileInstance};
-use crate::compatibility_map::{CompatibilityMap, CompatibilityMapError};
+use crate::{HexagonType, Polygon, Side, Tile};
+use crate::compatibility_map::CompatibilityMapError;
 
 macro_rules! cast_tuple {
     ($from:ty, $to:ty, $tuple:expr) => {{
@@ -32,51 +28,39 @@ pub enum GridError {
 
 #[derive(Debug, Clone)]
 pub struct Grid<T> {
+    polygon: Polygon,
     width: usize,
     height: usize,
     cells: Vec<Option<T>>,
-    possibilities: Vec<HashSet<T>>,
-    compatibility: CompatibilityMap<T>,
-    propagation_queue: VecDeque<(usize, usize)>,
-    entropy_queue: BinaryHeap<Reverse<(usize, usize, usize)>>,
 }
 
 impl<T> Grid<T>
 where
     T: Tile<T>,
 {
-    pub fn new(width: usize, height: usize, compatibility: CompatibilityMap<T>) -> Self {
-        let possibilities: Vec<HashSet<T>> = vec![T::all().into_iter().collect(); width * height];
-        let mut entropy_queue = BinaryHeap::new();
-        let mut propagation_queue = VecDeque::new();
-
-        for y in 0..height {
-            for x in 0..width {
-                let index = y * width + x;
-                entropy_queue.push(Reverse((possibilities[index].len(), x, y)));
-                if possibilities[index].len() == 1 {
-                    propagation_queue.push_back((x, y));
-                }
-            }
-        }
-
+    pub fn new(polygon: Polygon, width: usize, height: usize) -> Self {
         Self {
+            polygon,
             width,
             height,
             cells: vec![None; width * height],
-            compatibility,
-            possibilities,
-            propagation_queue,
-            entropy_queue,
         }
+    }
+
+    pub fn polygon(&self) -> Polygon {
+        self.polygon
+    }
+
+    pub fn width(&self) -> usize {
+        self.width
+    }
+
+    pub fn height(&self) -> usize {
+        self.height
     }
 
     pub fn cells(&self) -> &[Option<T>] {
         &self.cells
-    }
-
-    pub fn cached_possibilities(&self) -> &Vec<HashSet<T>> {
-        &self.possibilities
     }
 
     pub fn get(&self, x: usize, y: usize) -> Option<T> {
@@ -111,18 +95,12 @@ where
         self.get(x, y)
     }
 
-    pub fn get_neighbor_index(
-        &self,
-        x: usize,
-        y: usize,
-        side: Side,
-        polygon: Polygon,
-    ) -> Option<usize> {
-        let index = self.xy_to_index(x, y);
+    pub fn get_neighbor_index(&self, x: usize, y: usize, side: Side) -> Option<usize> {
         let x = x as i32;
         let y = y as i32;
         let width = self.width as i32;
         let height = self.height as i32;
+        let polygon = self.polygon;
         let nix = match polygon {
             Polygon::Triangle => match side {
                 Side::Bottom => (y + 1) * width + x,
@@ -227,18 +205,13 @@ where
         }
     }
 
-    pub fn neighbor_indexes(
-        &self,
-        x: usize,
-        y: usize,
-        polygon: Polygon,
-    ) -> Vec<(Side, Option<usize>)> {
-        match polygon {
+    pub fn neighbor_indexes(&self, x: usize, y: usize) -> Vec<(Side, Option<usize>)> {
+        match self.polygon {
             Polygon::Triangle => [Side::TopLeft, Side::TopRight, Side::Bottom]
-                .map(|side| (side, self.get_neighbor_index(x, y, side, polygon)))
+                .map(|side| (side, self.get_neighbor_index(x, y, side)))
                 .to_vec(),
             Polygon::Square => [Side::Top, Side::Right, Side::Bottom, Side::Left]
-                .map(|side| (side, self.get_neighbor_index(x, y, side, polygon)))
+                .map(|side| (side, self.get_neighbor_index(x, y, side)))
                 .to_vec(),
             Polygon::Hexagon(HexagonType::FlatTop) => [
                 Side::Top,
@@ -248,7 +221,7 @@ where
                 Side::BottomLeft,
                 Side::Bottom,
             ]
-            .map(|side| (side, self.get_neighbor_index(x, y, side, polygon)))
+            .map(|side| (side, self.get_neighbor_index(x, y, side)))
             .to_vec(),
             Polygon::Hexagon(HexagonType::PointyTop) => [
                 Side::TopLeft,
@@ -258,204 +231,16 @@ where
                 Side::BottomLeft,
                 Side::BottomRight,
             ]
-            .map(|side| (side, self.get_neighbor_index(x, y, side, polygon)))
+            .map(|side| (side, self.get_neighbor_index(x, y, side)))
             .to_vec(),
         }
     }
 
-    pub fn neighbors(&self, x: usize, y: usize, polygon: Polygon) -> Vec<(Side, Option<T>)> {
-        self.neighbor_indexes(x, y, polygon)
+    pub fn neighbors(&self, x: usize, y: usize) -> Vec<(Side, Option<T>)> {
+        self.neighbor_indexes(x, y)
             .into_iter()
             .map(|(side, index)| (side, index.and_then(|index| self.get_by_index(index))))
             .collect()
-    }
-
-    pub fn propagate_constraints(&mut self, polygon: Polygon) {
-        while let Some((x, y)) = self.propagation_queue.pop_front() {
-            let Some(tile) = self.get(x, y) else {
-                continue;
-            };
-            for (side, neighbor_index_opt) in self.neighbor_indexes(x, y, polygon) {
-                if let Some(neighbor_index) = neighbor_index_opt {
-                    if let Some(allowed_tiles) = self.compatibility.get(tile, side).unwrap() {
-                        let possibilities = &mut self.possibilities[neighbor_index];
-                        let old_len = possibilities.len();
-                        possibilities.retain(|t| allowed_tiles.contains(t));
-                        if possibilities.len() < old_len {
-                            self.propagation_queue
-                                .push_back(self.index_to_xy(neighbor_index));
-                            self.update_entropy(x, y);
-                        }
-                    }
-                }
-            }
-        }
-    }
-
-    pub fn update_entropy(&mut self, x: usize, y: usize) {
-        let index = self.xy_to_index(x, y);
-        let entropy = self.possibilities[index].len();
-        self.entropy_queue.push(Reverse((entropy, x, y)));
-    }
-
-    pub fn get_invalids(
-        &self,
-        allow_none: bool,
-        polygon: Polygon,
-    ) -> Result<HashSet<(usize, usize)>, GridError> {
-        let mut invalids = HashSet::new();
-        for (ix, cell) in self.cells.iter().enumerate() {
-            let (x, y) = self.index_to_xy(ix);
-            let Some(&tile) = cell.as_ref() else {
-                if !allow_none {
-                    invalids.insert((x, y));
-                }
-                continue;
-            };
-            for (side, nix) in self.neighbor_indexes(x, y, polygon) {
-                let Some(nix) = nix else {
-                    continue;
-                };
-                let Some(neighbor_tile) = self.get_by_index(nix) else {
-                    // could be out of bounds, so we skip checking for none
-                    // if this was in bounds and none, it will still be caught eventually in the loop
-                    continue;
-                };
-                let Some(compatible) = self.compatibility.get(tile, side)? else {
-                    unreachable!("bad compatibility map?")
-                };
-                if !compatible.contains(&neighbor_tile) {
-                    println!("ix: {ix},  nix: {nix}, tile: {tile:?}, compatible: {compatible:?}");
-                    invalids.insert((x, y));
-                }
-            }
-        }
-        Ok(invalids)
-    }
-
-    pub fn is_valid(&self, allow_none: bool, polygon: Polygon) -> Result<bool, GridError> {
-        for (ix, cell) in self.cells.iter().enumerate() {
-            let Some(&tile) = cell.as_ref() else {
-                if allow_none {
-                    continue;
-                } else {
-                    return Ok(false);
-                }
-            };
-            let (x, y) = self.index_to_xy(ix);
-            for (side, nix) in self.neighbor_indexes(x, y, polygon) {
-                let Some(nix) = nix else {
-                    continue;
-                };
-                let Some(neighbor_tile) = self.get_by_index(nix) else {
-                    // could be out of bounds, so we skip checking for none
-                    // if this was in bounds and none, it will still be caught eventually in the loop
-                    continue;
-                };
-                let Some(compatible) = self.compatibility.get(tile, side)? else {
-                    unreachable!("bad compatibility map?")
-                };
-                if !compatible.contains(&neighbor_tile) {
-                    return Ok(false);
-                }
-            }
-        }
-        Ok(true)
-    }
-
-    pub fn collapse_and_validate(&mut self, polygon: Polygon) -> Result<bool, GridError> {
-        let res = self.collapse(polygon);
-        if !self.is_valid(true, polygon)? {
-            return Err(GridError::CompatibilityViolation);
-        }
-        return res;
-    }
-
-    pub fn collapse(&mut self, polygon: Polygon) -> Result<bool, GridError> {
-        let mut rng = thread_rng();
-
-        // Re-load possibilities each iteration to account for external changes
-        for (ix, cell) in self.cells.iter().enumerate() {
-            let Some(&tile) = cell.as_ref() else {
-                continue;
-            };
-            self.possibilities[ix] = HashSet::from([tile]);
-            let (x, y) = self.index_to_xy(ix);
-            for (side, nix) in self.neighbor_indexes(x, y, polygon) {
-                let Some(nix) = nix else {
-                    continue;
-                };
-                if let Some(compatible) = self.compatibility.get(tile, side)? {
-                    self.possibilities[nix].retain(|p| compatible.contains(p));
-                } else {
-                    unreachable!("bad compatibility map?")
-                }
-            }
-        }
-
-        // Initialize possibilities
-        self.entropy_queue.clear();
-        self.propagation_queue.clear();
-
-        // Reinitialize the entropy queue and propagation queue
-        for y in 0..self.height {
-            for x in 0..self.width {
-                let index = y * self.width + x;
-                self.update_entropy(x, y);
-                if self.possibilities[index].len() == 1 {
-                    self.propagation_queue.push_back((x, y));
-                }
-            }
-        }
-
-        // Propagate constraints for initially determined tiles
-        self.propagate_constraints(polygon);
-
-        while let Some(Reverse((_, x, y))) = self.entropy_queue.pop() {
-            let index = self.xy_to_index(x, y);
-            if self.possibilities[index].len() > 1
-                || self.possibilities[index].len() == 1 && self.get_by_index(index).is_none()
-            {
-                if self.possibilities[index].len() == 1 && self.get_by_index(index).is_none() {
-                    println!("force filling: ({x},{y})")
-                }
-                if let Some(&tile) = self.possibilities[index]
-                    .iter()
-                    .cloned()
-                    .collect::<Vec<_>>()
-                    .choose(&mut rng)
-                {
-                    self.set(x, y, tile);
-                    // set the possibilities to the tile we just set it as
-                    self.possibilities[index] = HashSet::from([tile]);
-
-                    self.propagation_queue.push_back((x, y));
-                    self.propagate_constraints(polygon);
-
-                    // Update entropy for neighbors
-                    for (_, neighbor_index_opt) in self.neighbor_indexes(x, y, polygon) {
-                        if let Some(neighbor_index) = neighbor_index_opt {
-                            let (nx, ny) = self.index_to_xy(neighbor_index);
-                            self.update_entropy(nx, ny);
-                        }
-                    }
-                }
-            }
-        }
-
-        // Ensure propagation queue is empty and constraints are fully propagated
-        self.propagate_constraints(polygon);
-
-        // Check if any cells are still None
-        for y in 0..self.height {
-            for x in 0..self.width {
-                let index = y * self.width + x;
-                if self.cells[index].is_none() {
-                    return Ok(false);
-                }
-            }
-        }
-        Ok(true)
     }
 
     pub fn matrix(&self) -> Vec<Vec<Option<T>>> {
@@ -492,6 +277,10 @@ where
 
 #[cfg(test)]
 mod tests {
+    use crate::compatibility_map::CompatibilityMap;
+    use crate::TileInstance;
+    use crate::wfc::WaveFunctionCollapse;
+
     use super::*;
 
     #[test]
@@ -538,16 +327,19 @@ mod tests {
             }
         }
 
-        let mut grid = Grid::new(10, 10, compatibility);
+        let mut wfc = WaveFunctionCollapse::new_with_compatibility(
+            Grid::new(Polygon::Square, 10, 10),
+            compatibility,
+        );
         let max_retries = 10;
 
         for _ in 1..=max_retries {
-            if grid.collapse(Polygon::Square)? {
+            if wfc.collapse()? {
                 break;
             }
         }
 
-        assert_eq!(grid.is_valid(false, Polygon::Square), Ok(true));
+        assert_eq!(wfc.is_valid(false), Ok(true));
 
         Ok(())
     }
@@ -593,23 +385,26 @@ mod tests {
             }
         }
 
-        let mut grid = Grid::new(2, 1, compatibility);
+        let mut wfc = WaveFunctionCollapse::new_with_compatibility(
+            Grid::new(Polygon::Square, 2, 1),
+            compatibility,
+        );
 
         // don't allow empty cells
-        assert_eq!(grid.is_valid(false, Polygon::Square), Ok(false));
+        assert_eq!(wfc.is_valid(false), Ok(false));
         // allow empty cells
-        assert_eq!(grid.is_valid(true, Polygon::Square), Ok(true));
+        assert_eq!(wfc.is_valid(true), Ok(true));
 
-        grid.set(0, 0, MyTile::A);
-        grid.set(1, 0, MyTile::B);
+        wfc.grid_mut().set(0, 0, MyTile::A);
+        wfc.grid_mut().set(1, 0, MyTile::B);
 
         // dont allow bad compat
-        assert_eq!(grid.is_valid(false, Polygon::Square), Ok(false));
+        assert_eq!(wfc.is_valid(false), Ok(false));
 
-        grid.set(1, 0, MyTile::A);
+        wfc.grid_mut().set(1, 0, MyTile::A);
 
         // valid compat
-        assert_eq!(grid.is_valid(false, Polygon::Square), Ok(true));
+        assert_eq!(wfc.is_valid(false), Ok(true));
 
         Ok(())
     }

@@ -1,10 +1,9 @@
-use std::fmt::{Debug, Display};
+use std::fmt::Debug;
 use std::hash::Hash;
-
-use rand::seq::SliceRandom;
 
 pub mod compatibility_map;
 pub mod grid;
+pub mod wfc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
 pub enum Polygon {
