@@ -16,10 +16,4 @@ thiserror = "1"
 itertools = "0.13.0"
 
 [[example]]
-name = "hex"
-
-[[example]]
-name = "hex2"
-
-[[example]]
 name = "hex3"
