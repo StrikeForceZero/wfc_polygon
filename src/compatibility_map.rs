@@ -9,6 +9,9 @@ use crate::grid::GridType;
 pub enum CompatibilityMapError<T> {
     #[error("{1:?} is an invalid side for {0:?}")]
     InvalidSide(Polygon, Side),
+    #[error("Contradiction: {0:?} allows for {2:?} on its {1:?} but {2:?} does not allow for {0:?} on its {3:?}"
+    )]
+    Contradiction(T, Side, T, Side),
 }
 
 pub type CompatibilityMapKey<GT, T>
@@ -98,6 +101,33 @@ where
                 side.into(),
             ))
         }
+    }
+    pub fn check_contradictions(&self) -> Result<(), CompatibilityMapError<T>> {
+        for (&(polygon, id, side), valid_set) in self.compatibility.iter() {
+            let opposite_side: Side = side.into();
+            let opposite_side = opposite_side.opposite();
+            let opposite_side: <GT as GridType<T>>::SideType = match opposite_side.try_into() {
+                Ok(opposite_side) => opposite_side,
+                // in theory this should unreachable with the compile time checks
+                Err(err) => panic!("failed to convert {opposite_side:?} back into SideType"),
+            };
+            for &other_id in valid_set {
+                let err = CompatibilityMapError::Contradiction(
+                    id,
+                    side.into(),
+                    other_id,
+                    opposite_side.into(),
+                );
+                let other_key = &(polygon, other_id, opposite_side);
+                if let Some(other_valid_set) = self.compatibility.get(other_key) {
+                    if other_valid_set.contains(&id) {
+                        continue;
+                    }
+                }
+                return Err(err);
+            }
+        }
+        Ok(())
     }
     pub fn iter(&self) -> impl Iterator<Item = (&CompatibilityMapKey<GT, T>, &HashSet<T>)> {
         self.compatibility.iter()
