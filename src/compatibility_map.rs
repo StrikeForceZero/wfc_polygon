@@ -46,32 +46,26 @@ where
     fn is_valid_side(&self, side: GT::SideType) -> bool {
         let side = side.into();
         match self.polygon.into() {
-            Polygon::Triangle => match side {
-                Side::Bottom | Side::TopLeft | Side::TopRight => true,
-                _ => false,
-            },
-            Polygon::Square => match side {
-                Side::Top | Side::Bottom | Side::Left | Side::Right => true,
-                _ => false,
-            },
-            Polygon::Hexagon(HexagonType::FlatTop) => match side {
+            Polygon::Triangle => matches!(side, Side::Bottom | Side::TopLeft | Side::TopRight),
+            Polygon::Square => matches!(side, Side::Top | Side::Bottom | Side::Left | Side::Right),
+            Polygon::Hexagon(HexagonType::FlatTop) => matches!(
+                side,
                 Side::Top
-                | Side::TopLeft
-                | Side::TopRight
-                | Side::BottomLeft
-                | Side::BottomRight
-                | Side::Bottom => true,
-                _ => false,
-            },
-            Polygon::Hexagon(HexagonType::PointyTop) => match side {
+                    | Side::TopLeft
+                    | Side::TopRight
+                    | Side::BottomLeft
+                    | Side::BottomRight
+                    | Side::Bottom
+            ),
+            Polygon::Hexagon(HexagonType::PointyTop) => matches!(
+                side,
                 Side::TopLeft
-                | Side::TopRight
-                | Side::BottomLeft
-                | Side::BottomRight
-                | Side::Left
-                | Side::Right => true,
-                _ => false,
-            },
+                    | Side::TopRight
+                    | Side::BottomLeft
+                    | Side::BottomRight
+                    | Side::Left
+                    | Side::Right
+            ),
         }
     }
     pub fn add(
