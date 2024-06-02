@@ -35,6 +35,7 @@ pub fn setup(
 }
 
 pub fn gen_map(mut event_writer: EventWriter<MapGenerated>) {
+    println!("generating map");
     let mut wfc = WaveFunctionCollapse::new_with_compatibility(
         FlatTopHexGrid::new(25, 25),
         HexTileId::get_compatibility_map(),
@@ -59,6 +60,7 @@ pub fn input_handler(
 ) {
     if keyboard_input.pressed(KeyCode::ControlLeft) {
         if mouse_input.just_pressed(MouseButton::Left) {
+            println!("sending regen map event");
             regen_map_event_writer.send(RegenerateMap);
         } else if mouse_input.just_pressed(MouseButton::Right) {
             let hex_mode = *HEX_MODE.read().unwrap();
@@ -66,6 +68,7 @@ pub fn input_handler(
                 HexMode::Full => HexMode::Segments,
                 HexMode::Segments => HexMode::Full,
             };
+            println!("changing hex mode to {new_hex_mode:?} for next generation");
             change_hex_mode_event_writer.send(ChangeHexMode(new_hex_mode));
         }
     }
