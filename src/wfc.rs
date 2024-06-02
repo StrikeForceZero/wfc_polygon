@@ -134,9 +134,9 @@ where
                         let old_len = possibilities.len();
                         possibilities.retain(|t| allowed_tiles.contains(t));
                         if possibilities.len() < old_len {
-                            self.propagation_queue
-                                .push_back(self.grid.index_to_xy(neighbor_index));
-                            self.update_entropy(x, y);
+                            let (nx, ny) = self.grid.index_to_xy(neighbor_index);
+                            self.propagation_queue.push_back((nx, ny));
+                            self.update_entropy(nx, ny);
                         }
                     }
                 }
