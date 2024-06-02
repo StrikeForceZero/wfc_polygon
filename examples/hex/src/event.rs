@@ -12,7 +12,7 @@ pub struct RegenerateMap;
 #[derive(Debug, Copy, Clone, Event)]
 pub struct ClearCache;
 
-#[derive(Clone, Event)]
+#[derive(Event)]
 pub struct MapGenerated(pub WaveFunctionCollapse<FlatTopHexGrid, HexTileId>);
 
 #[derive(Clone, Event)]

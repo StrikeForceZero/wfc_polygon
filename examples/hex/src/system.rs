@@ -43,7 +43,7 @@ pub fn gen_map(mut event_writer: EventWriter<MapGenerated>) {
     let max_retries = 100;
     for n in 1..=max_retries {
         println!("collapse attempt {n}/{max_retries}");
-        if wfc.collapse() {
+        if wfc.collapse().unwrap_or_else(|err| panic!("{err}")) {
             println!("collapse successful");
             break;
         }

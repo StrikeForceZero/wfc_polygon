@@ -1,6 +1,7 @@
 use bevy::prelude::*;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Reflect)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Reflect, Serialize, Deserialize)]
 pub enum HexSegmentId {
     Grass,
     Mountain,

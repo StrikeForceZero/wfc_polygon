@@ -1,5 +1,6 @@
 use bevy::prelude::*;
 use itertools::iproduct;
+use serde::{Deserialize, Serialize};
 
 use wfc_polygon::{FlatTopHexSide, Tile, TileInstance};
 use wfc_polygon::compatibility_map::CompatibilityMap;
@@ -10,7 +11,7 @@ use crate::hex::HexSegmentIdTuple;
 use crate::hex::map::{FlatTopHexagonalSegmentIdMap, FlatTopHexagonalSegmentIdOptionMap};
 use crate::hex::segment::HexSegmentId;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Reflect)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Reflect, Serialize, Deserialize)]
 pub struct HexTileId(pub HexSegmentIdTuple);
 
 impl TileInstance for HexTileId {}

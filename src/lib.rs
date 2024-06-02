@@ -1,13 +1,15 @@
 use std::fmt::Debug;
 use std::hash::Hash;
 
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 pub mod compatibility_map;
 pub mod grid;
+mod state_stack;
 pub mod wfc;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Serialize, Deserialize)]
 pub enum Polygon {
     Triangle,
     Square,
@@ -39,13 +41,13 @@ impl Polygon {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Serialize, Deserialize)]
 pub enum HexagonType {
     FlatTop,
     PointyTop,
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct Triangle;
 
 impl From<Triangle> for Polygon {
@@ -54,7 +56,7 @@ impl From<Triangle> for Polygon {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct Square;
 
 impl From<Square> for Polygon {
@@ -63,7 +65,7 @@ impl From<Square> for Polygon {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct FlatTopHexagon;
 
 impl From<FlatTopHexagon> for Polygon {
@@ -72,7 +74,7 @@ impl From<FlatTopHexagon> for Polygon {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Serialize, Deserialize)]
 pub struct PointyTopHexagon;
 
 impl From<PointyTopHexagon> for Polygon {
@@ -81,7 +83,7 @@ impl From<PointyTopHexagon> for Polygon {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Serialize, Deserialize)]
 pub enum Side {
     Top,
     Bottom,
@@ -108,14 +110,14 @@ impl Side {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Serialize, Deserialize)]
 pub enum TriangleSide {
     TopRight,
     Bottom,
     TopLeft,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Serialize, Deserialize)]
 pub enum SquareSide {
     Top,
     Right,
@@ -123,7 +125,7 @@ pub enum SquareSide {
     Left,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Serialize, Deserialize)]
 pub enum FlatTopHexSide {
     Top,
     TopRight,
@@ -133,7 +135,7 @@ pub enum FlatTopHexSide {
     TopLeft,
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Serialize, Deserialize)]
 pub enum PointyTopHexSide {
     TopRight,
     Right,
@@ -260,7 +262,10 @@ impl From<PointyTopHexSide> for Side {
     }
 }
 
-pub trait TileInstance: Debug + Clone + Copy + PartialEq + PartialOrd + Ord + Hash {}
+pub trait TileInstance:
+    Debug + Clone + Copy + PartialEq + PartialOrd + Ord + Hash
+{
+}
 
 pub trait Tile<T: TileInstance>: TileInstance {
     fn all() -> Vec<T>;

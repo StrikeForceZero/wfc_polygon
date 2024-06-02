@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, HashSet};
 use std::fmt::Debug;
+use serde::{Deserialize, Serialize};
 
 use thiserror::Error;
 
@@ -23,7 +24,7 @@ where
     T: Tile<T>,
 = (GT::Type, T, GT::SideType);
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct CompatibilityMap<GT, T>
 where
     GT: ?Sized + GridType<T>,
@@ -120,6 +121,7 @@ where
 
 #[cfg(test)]
 mod tests {
+    use serde::{Deserialize, Serialize};
     use crate::{SquareSide, Tile, TileInstance};
     use crate::grid::SquareGrid;
 
@@ -127,7 +129,9 @@ mod tests {
 
     #[test]
     fn test_check_contradiction() {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+        #[derive(
+            Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Serialize, Deserialize,
+        )]
         enum Id {
             A,
             B,

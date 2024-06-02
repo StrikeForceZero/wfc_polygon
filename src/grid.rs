@@ -1,12 +1,14 @@
 use std::fmt::{Debug, Display, Formatter};
 
+use serde::{Deserialize, Serialize};
+use serde::de::DeserializeOwned;
 use thiserror::Error;
 
+use crate::compatibility_map::CompatibilityMapError;
 use crate::{
-    FlatTopHexagon, FlatTopHexSide, HexagonType, PointyTopHexagon, PointyTopHexSide, Polygon, Side,
+    FlatTopHexSide, FlatTopHexagon, HexagonType, PointyTopHexSide, PointyTopHexagon, Polygon, Side,
     Square, SquareSide, Tile, Triangle, TriangleSide,
 };
-use crate::compatibility_map::CompatibilityMapError;
 
 macro_rules! cast_tuple {
     ($from:ty, $to:ty, $tuple:expr) => {{
@@ -21,15 +23,17 @@ macro_rules! cast_tuple {
     }};
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Serialize, Deserialize,
+)]
 pub struct GridTypeHolder<T: ?Sized>(T);
 
 pub trait GridType<T>
 where
     T: Tile<T>,
 {
-    type Type: Into<Polygon> + Copy + Default + Ord;
-    type SideType: Into<Side> + Copy + Ord + TryFrom<Side> + Debug;
+    type Type: Into<Polygon> + Copy + Default + Ord + Serialize + DeserializeOwned;
+    type SideType: Into<Side> + Copy + Ord + TryFrom<Side> + Debug + Serialize + DeserializeOwned;
     /*
        TODO: we could default impl here if we make everything,
            constrained to: <<GT as GridType<T>>::SideType as TryFrom<Side>>::Error: Debug,
@@ -38,7 +42,9 @@ where
     fn new(width: usize, height: usize) -> Grid<Self, T>;
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Serialize, Deserialize,
+)]
 pub struct TriangleGrid;
 
 impl<T> GridType<T> for TriangleGrid
@@ -52,7 +58,9 @@ where
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Serialize, Deserialize,
+)]
 pub struct SquareGrid;
 
 impl<T> GridType<T> for SquareGrid
@@ -66,7 +74,9 @@ where
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Serialize, Deserialize,
+)]
 pub struct FlatTopHexGrid;
 
 impl<T> GridType<T> for FlatTopHexGrid
@@ -80,7 +90,9 @@ where
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Serialize, Deserialize,
+)]
 pub struct PointyTopHexGrid;
 
 impl<T> GridType<T> for PointyTopHexGrid
@@ -106,7 +118,7 @@ where
     CompatibilityViolation,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Grid<GT, T>
 where
     GT: ?Sized + GridType<T>,
@@ -384,14 +396,16 @@ where
 #[cfg(test)]
 mod tests {
     use crate::compatibility_map::CompatibilityMap;
-    use crate::TileInstance;
     use crate::wfc::WaveFunctionCollapse;
+    use crate::TileInstance;
 
     use super::*;
 
     #[test]
     fn test_square() {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+        #[derive(
+            Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Serialize, Deserialize,
+        )]
         enum MyTile {
             GrassWater,
             Grass,
@@ -443,7 +457,7 @@ mod tests {
         let max_retries = 10;
 
         for _ in 1..=max_retries {
-            if wfc.collapse() {
+            if wfc.collapse().unwrap_or_else(|err| panic!("{err}")) {
                 break;
             }
         }
@@ -453,7 +467,7 @@ mod tests {
 
     #[test]
     fn test_is_valid() -> anyhow::Result<()> {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Serialize, Deserialize)]
         enum MyTile {
             A,
             B,

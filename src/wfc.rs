@@ -1,15 +1,59 @@
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashSet, VecDeque};
 use std::fmt::Debug;
+use std::num::NonZeroUsize;
+use std::path::PathBuf;
 
 use rand::prelude::*;
 use rand::thread_rng;
+use serde::de::DeserializeOwned;
+use serde::{Deserialize, Serialize};
+use thiserror::Error;
 
-use crate::{Side, Tile};
 use crate::compatibility_map::CompatibilityMap;
 use crate::grid::{Grid, GridError, GridType};
+use crate::state_stack::LazyStateStack;
+use crate::{Side, Tile};
 
-#[derive(Clone)]
+#[derive(Serialize, Deserialize)]
+struct SavedState<GT, T>(WaveFunctionCollapse<GT, T>)
+where
+    GT: ?Sized + GridType<T>,
+    T: Tile<T>;
+
+struct StateHistory {
+    state_stack: LazyStateStack<PathBuf>,
+}
+
+impl StateHistory {
+    fn new() -> Self {
+        Self {
+            state_stack: LazyStateStack::new(
+                PathBuf::from("wfc_state_history.bin"),
+                // TODO: no idea what what this number should be set to
+                NonZeroUsize::new(512).unwrap(),
+            ),
+        }
+    }
+}
+
+#[derive(Debug, Error)]
+pub enum WaveFunctionCollapseError<GT, T>
+where
+    GT: ?Sized + GridType<T>,
+    T: Tile<T>,
+{
+    #[error("Failed to read/write from state history: {0:?}")]
+    StateStackError(#[from] std::io::Error),
+    #[error("No more states available to backtrack")]
+    StateStackExhausted,
+    #[error("{0:?}")]
+    GridError(#[from] GridError<GT, T>),
+    #[error("Failed to serialize/deserialize state history: {0:?}")]
+    SerializationError(#[from] bincode::Error),
+}
+
+#[derive(Serialize, Deserialize)]
 pub struct WaveFunctionCollapse<GT, T>
 where
     GT: ?Sized + GridType<T>,
@@ -20,12 +64,15 @@ where
     compatibility: CompatibilityMap<GT, T>,
     propagation_queue: VecDeque<(usize, usize)>,
     entropy_queue: BinaryHeap<Reverse<(usize, usize, usize)>>,
+    last_set_index: Option<usize>,
+    #[serde(skip_serializing, skip_deserializing)]
+    state_history: Option<StateHistory>,
 }
 
 impl<GT, T> WaveFunctionCollapse<GT, T>
 where
-    GT: ?Sized + GridType<T>,
-    T: Tile<T>,
+    GT: ?Sized + GridType<T> + Serialize + for<'a> Deserialize<'a>,
+    T: Tile<T> + Serialize + for<'a> Deserialize<'a>,
     <<GT as GridType<T>>::SideType as TryFrom<Side>>::Error: Debug,
 {
     pub fn new(grid: Grid<GT, T>) -> Self {
@@ -58,6 +105,8 @@ where
             compatibility,
             propagation_queue,
             entropy_queue,
+            last_set_index: None,
+            state_history: Some(StateHistory::new()),
         }
     }
 
@@ -101,7 +150,36 @@ where
         self.entropy_queue.push(Reverse((entropy, x, y)));
     }
 
-    pub fn collapse(&mut self) -> bool {
+    fn backtrack(&mut self) -> Result<(), WaveFunctionCollapseError<GT, T>> {
+        let Some(prev_state_bin) = self
+            .state_history
+            .as_mut()
+            .expect("expected state history")
+            .state_stack
+            .pop()
+        else {
+            return Err(WaveFunctionCollapseError::StateStackExhausted);
+        };
+        let last_set_index = self
+            .last_set_index
+            .unwrap_or_else(|| unreachable!("backtrack called before collapse"));
+        let last_set_tile =
+            self.grid.cells()[last_set_index].expect("expected tile at least set index");
+        println!("backtracking {last_set_index} {last_set_tile:?}");
+        let (x, y) = self.grid.index_to_xy(last_set_index);
+        let prev_state = bincode::deserialize::<Self>(&prev_state_bin)?;
+        let state_history = self.state_history.take();
+        *self = prev_state;
+        self.state_history = state_history;
+        self.possibilities[last_set_index].remove(&last_set_tile);
+
+        self.propagation_queue.push_back((x, y));
+        self.propagate_constraints();
+
+        Ok(())
+    }
+
+    pub fn collapse(&mut self) -> Result<bool, WaveFunctionCollapseError<GT, T>> {
         let mut rng = thread_rng();
 
         // Re-load possibilities each iteration to account for external changes
@@ -155,6 +233,7 @@ where
                     .collect::<Vec<_>>()
                     .choose(&mut rng)
                 {
+                    self.last_set_index = Some(index);
                     self.grid.set(x, y, tile);
                     // set the possibilities to the tile we just set it as
                     self.possibilities[index] = HashSet::from([tile]);
@@ -169,7 +248,18 @@ where
                             self.update_entropy(nx, ny);
                         }
                     }
+
+                    bincode::serialize(&self).and_then(|bin| {
+                        Ok(self
+                            .state_history
+                            .as_mut()
+                            .expect("expected state history")
+                            .state_stack
+                            .push(&bin)?)
+                    })?
                 }
+            } else if self.possibilities[index].len() == 0 {
+                self.backtrack()?;
             }
         }
 
@@ -181,17 +271,17 @@ where
             for x in 0..self.grid.width() {
                 let index = y * self.grid.width() + x;
                 if self.grid.cells()[index].is_none() {
-                    return false;
+                    return Ok(false);
                 }
             }
         }
-        true
+        Ok(true)
     }
 
-    pub fn collapse_and_validate(&mut self) -> Result<bool, GridError<GT, T>> {
-        let res = self.collapse();
+    pub fn collapse_and_validate(&mut self) -> Result<bool, WaveFunctionCollapseError<GT, T>> {
+        let res = self.collapse()?;
         if !self.is_valid(true) {
-            Err(GridError::CompatibilityViolation)
+            Err(GridError::CompatibilityViolation.into())
         } else {
             Ok(res)
         }
