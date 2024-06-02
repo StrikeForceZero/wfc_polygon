@@ -70,6 +70,10 @@ impl StateStack {
     fn current_offset(&self) -> usize {
         *self.offsets.last().unwrap_or(&0)
     }
+
+    pub fn len(&self) -> usize {
+        self.offsets.len()
+    }
 }
 
 pub struct LazyStateStack<P: AsRef<Path>> {
@@ -109,5 +113,9 @@ impl<P: AsRef<Path>> LazyStateStack<P> {
             .as_ref()
             .map(|s| s.current_offset())
             .unwrap_or(0)
+    }
+
+    pub fn len(&self) -> usize {
+        self.state_stack.as_ref().map(|s| s.len()).unwrap_or(0)
     }
 }

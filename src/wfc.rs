@@ -155,6 +155,18 @@ where
         self.entropy_queue.push(Reverse((entropy, x, y)));
     }
 
+    fn save_state(&mut self) -> Result<(), WaveFunctionCollapseError<GT, T>> {
+        bincode::serialize(&self).and_then(|bin| {
+            Ok(self
+                .state_history
+                .as_mut()
+                .expect("expected state history")
+                .state_stack
+                .push(&bin)?)
+        })?;
+        Ok(())
+    }
+
     fn backtrack(&mut self) -> Result<(), WaveFunctionCollapseError<GT, T>> {
         let Some(prev_state_bin) = self
             .state_history
@@ -260,17 +272,18 @@ where
                             self.update_entropy(nx, ny);
                         }
                     }
-
-                    bincode::serialize(&self).and_then(|bin| {
-                        Ok(self
-                            .state_history
-                            .as_mut()
+                    println!(
+                        "saving state - size: {}",
+                        self.state_history
+                            .as_ref()
                             .expect("expected state history")
                             .state_stack
-                            .push(&bin)?)
-                    })?
+                            .len()
+                            + 1
+                    );
+                    self.save_state()?;
                 }
-            } else if self.possibilities[index].len() == 0 {
+            } else if self.possibilities[index].is_empty() {
                 self.backtrack()?;
             }
         }
