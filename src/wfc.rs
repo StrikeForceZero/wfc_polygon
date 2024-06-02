@@ -10,7 +10,7 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{Side, Tile};
-use crate::compatibility_map::CompatibilityMap;
+use crate::compatibility_map::{CompatibilityMap, CompatibilityMapError};
 use crate::grid::{Grid, GridError, GridType};
 use crate::state_stack::LazyStateStack;
 
@@ -50,6 +50,8 @@ where
     GridError(#[from] GridError<GT, T>),
     #[error("Failed to serialize/deserialize state history: {0:?}")]
     SerializationError(#[from] bincode::Error),
+    #[error("{0:?}")]
+    CompatibilityMapError(#[from] CompatibilityMapError<GT, T>),
 }
 
 #[derive(Default, Serialize, Deserialize)]
@@ -156,6 +158,15 @@ where
     }
 
     fn save_state(&mut self) -> Result<(), WaveFunctionCollapseError<GT, T>> {
+        println!(
+            "saving state - size: {}",
+            self.state_history
+                .as_ref()
+                .expect("expected state history")
+                .state_stack
+                .len()
+                + 1
+        );
         bincode::serialize(&self).and_then(|bin| {
             Ok(self
                 .state_history
@@ -200,6 +211,11 @@ where
 
     pub fn collapse(&mut self) -> Result<bool, WaveFunctionCollapseError<GT, T>> {
         let mut rng = thread_rng();
+
+        self.compatibility
+            .as_ref()
+            .expect("expected compatibility map")
+            .check_contradictions()?;
 
         // Re-load possibilities each iteration to account for external changes
         for (ix, cell) in self.grid.cells().iter().enumerate() {
@@ -272,15 +288,6 @@ where
                             self.update_entropy(nx, ny);
                         }
                     }
-                    println!(
-                        "saving state - size: {}",
-                        self.state_history
-                            .as_ref()
-                            .expect("expected state history")
-                            .state_stack
-                            .len()
-                            + 1
-                    );
                     self.save_state()?;
                 }
             } else if self.possibilities[index].is_empty() {
