@@ -42,13 +42,39 @@ impl HexSegmentId {
     pub fn compatible(&self) -> Vec<HexSegmentId> {
         match self {
             Self::None => vec![],
-            Self::Grass => vec![Self::Grass, Self::Sand, Self::Mountain],
-            Self::Mountain => vec![Self::Mountain, Self::MountainPeak, Self::Grass],
+            Self::Grass => vec![
+                Self::Grass,
+                Self::Sand,
+                Self::Mountain,
+                Self::River,
+                Self::Creek,
+            ],
+            Self::Mountain => vec![Self::Mountain, Self::MountainPeak, Self::Grass, Self::Creek],
             Self::MountainPeak => vec![Self::Mountain, Self::Creek],
-            Self::River => vec![Self::River, Self::Creek, Self::Ocean],
-            Self::Creek => vec![Self::Creek, Self::River, Self::Ocean, Self::MountainPeak],
-            Self::Ocean => vec![Self::Ocean, Self::Creek, Self::River, Self::Sand],
-            Self::Sand => vec![Self::Sand, Self::Ocean, Self::Grass],
+            Self::River => vec![
+                Self::River,
+                Self::Ocean,
+                Self::Creek,
+                Self::Grass,
+                Self::Sand,
+            ],
+            Self::Creek => vec![
+                Self::Creek,
+                Self::River,
+                Self::Ocean,
+                Self::MountainPeak,
+                Self::Grass,
+                Self::Mountain,
+                Self::Sand,
+            ],
+            Self::Ocean => vec![Self::Ocean, Self::River, Self::Sand, Self::Creek],
+            Self::Sand => vec![
+                Self::Sand,
+                Self::Ocean,
+                Self::Grass,
+                Self::River,
+                Self::Creek,
+            ],
         }
     }
     pub fn as_color(&self) -> Color {
