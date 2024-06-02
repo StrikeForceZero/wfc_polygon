@@ -1,3 +1,5 @@
+use std::sync::RwLock;
+
 use bevy::prelude::*;
 use bevy_inspector_egui::bevy_egui::EguiPlugin;
 use bevy_inspector_egui::quick::WorldInspectorPlugin;
@@ -17,12 +19,13 @@ mod system;
 mod util;
 
 #[derive(Debug, Copy, Clone, PartialEq)]
-enum Mode {
+enum HexMode {
     Full,
     Segments,
 }
 
-const MODE: Mode = Mode::Full;
+// TODO: this is silly but due to the current way its being read in `HexTileId` it needs to remain global
+static HEX_MODE: RwLock<HexMode> = RwLock::new(HexMode::Full);
 const DEBUG_COMPATIBILITY_MAP: bool = false;
 
 //noinspection RsConstantConditionIf
@@ -37,8 +40,9 @@ fn main() {
         .run();
 
     if DEBUG_COMPATIBILITY_MAP {
-        match MODE {
-            Mode::Full => {
+        let mode = *HEX_MODE.read().unwrap();
+        match mode {
+            HexMode::Full => {
                 for ((_, hex, side), patterns) in HexTileId::get_compatibility_map().iter() {
                     println!(
                         "{:?} {side:?} {:?}",
@@ -47,7 +51,7 @@ fn main() {
                     );
                 }
             }
-            Mode::Segments => {
+            HexMode::Segments => {
                 // too many to print
             }
         }

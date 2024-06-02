@@ -9,9 +9,10 @@ use bevy_mod_picking::prelude::*;
 use wfc_polygon::grid::{FlatTopHexGrid, GridType};
 use wfc_polygon::wfc::WaveFunctionCollapse;
 
+use crate::{HEX_MODE, HexMode};
 use crate::color_wrapper::ColorWrapper;
 use crate::component::*;
-use crate::event::{ClearCache, MapGenerated, RegenerateMap};
+use crate::event::{ChangeHexMode, ClearCache, MapGenerated, RegenerateMap};
 use crate::hex::map::FlatTopHexagonalSegmentIdMap;
 use crate::hex::tile_id::HexTileId;
 use crate::resource::*;
@@ -53,10 +54,20 @@ pub fn gen_map(mut event_writer: EventWriter<MapGenerated>) {
 pub fn input_handler(
     mouse_input: Res<ButtonInput<MouseButton>>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
-    mut event_writer: EventWriter<RegenerateMap>,
+    mut regen_map_event_writer: EventWriter<RegenerateMap>,
+    mut change_hex_mode_event_writer: EventWriter<ChangeHexMode>,
 ) {
-    if keyboard_input.pressed(KeyCode::ControlLeft) && mouse_input.just_pressed(MouseButton::Left) {
-        event_writer.send(RegenerateMap);
+    if keyboard_input.pressed(KeyCode::ControlLeft) {
+        if mouse_input.just_pressed(MouseButton::Left) {
+            regen_map_event_writer.send(RegenerateMap);
+        } else if mouse_input.just_pressed(MouseButton::Right) {
+            let hex_mode = *HEX_MODE.read().unwrap();
+            let new_hex_mode = match hex_mode {
+                HexMode::Full => HexMode::Segments,
+                HexMode::Segments => HexMode::Full,
+            };
+            change_hex_mode_event_writer.send(ChangeHexMode(new_hex_mode));
+        }
     }
 }
 
@@ -280,5 +291,16 @@ pub fn map_generated_event_handler(
                 commands.entity(id).insert(HexInvalid);
             }
         }
+    }
+}
+
+pub fn change_hex_mode_event_handler(mut events: EventReader<ChangeHexMode>) {
+    if let Some(event) = events.read().last() {
+        let new_hex_mode = event.0;
+        let hex_mode = *HEX_MODE.read().unwrap();
+        if hex_mode == new_hex_mode {
+            return;
+        }
+        *HEX_MODE.write().unwrap() = new_hex_mode;
     }
 }

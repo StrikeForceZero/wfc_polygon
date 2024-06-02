@@ -1,7 +1,7 @@
 use bevy::prelude::*;
 
 use crate::component::{HexData, HexInvalid, HexPos, HexPossibilities, InnerHex};
-use crate::event::{ClearCache, MapGenerated, RegenerateMap};
+use crate::event::{ChangeHexMode, ClearCache, MapGenerated, RegenerateMap};
 use crate::resource::{GenMapSystemId, HexPossibilitiesCache, HexScale};
 use crate::system;
 
@@ -24,9 +24,11 @@ impl Plugin for SubPlugin {
             .add_event::<RegenerateMap>()
             .add_event::<ClearCache>()
             .add_event::<MapGenerated>()
+            .add_event::<ChangeHexMode>()
             .add_systems(Startup, system::setup)
             .add_systems(Update,
                          (
+                             system::change_hex_mode_event_handler,
                              system::ui,
                              system::cache_update_on_hex_selected_handler,
                              system::input_handler,

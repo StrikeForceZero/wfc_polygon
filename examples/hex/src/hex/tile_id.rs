@@ -5,7 +5,7 @@ use wfc_polygon::{FlatTopHexSide, Tile, TileInstance};
 use wfc_polygon::compatibility_map::CompatibilityMap;
 use wfc_polygon::grid::FlatTopHexGrid;
 
-use crate::{Mode, MODE};
+use crate::{HEX_MODE, HexMode};
 use crate::hex::HexSegmentIdTuple;
 use crate::hex::map::{FlatTopHexagonalSegmentIdMap, FlatTopHexagonalSegmentIdOptionMap};
 use crate::hex::segment::HexSegmentId;
@@ -37,11 +37,13 @@ impl HexTileId {
         );
 
         let iter = permutations.map(|(a, b, c, d, e, f)| HexTileId((a, b, c, d, e, f)));
-        match MODE {
-            Mode::Full => iter
+
+        let mode = *HEX_MODE.read().unwrap();
+        match mode {
+            HexMode::Full => iter
                 .filter(|&hex| FlatTopHexagonalSegmentIdMap::from(hex).is_all_segments_same())
                 .collect(),
-            Mode::Segments => iter
+            HexMode::Segments => iter
                 .filter(|&hex| FlatTopHexagonalSegmentIdMap::from(hex).has_valid_segments())
                 .collect(),
         }
