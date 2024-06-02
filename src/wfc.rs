@@ -6,20 +6,19 @@ use std::path::PathBuf;
 
 use rand::prelude::*;
 use rand::thread_rng;
-use serde::de::DeserializeOwned;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+use crate::{Side, Tile};
 use crate::compatibility_map::CompatibilityMap;
 use crate::grid::{Grid, GridError, GridType};
 use crate::state_stack::LazyStateStack;
-use crate::{Side, Tile};
 
 #[derive(Serialize, Deserialize)]
 struct SavedState<GT, T>(WaveFunctionCollapse<GT, T>)
 where
-    GT: ?Sized + GridType<T>,
-    T: Tile<T>;
+    GT: ?Sized + GridType<T> + Default,
+    T: Tile<T> + Default;
 
 struct StateHistory {
     state_stack: LazyStateStack<PathBuf>,
@@ -31,7 +30,7 @@ impl StateHistory {
             state_stack: LazyStateStack::new(
                 PathBuf::from("wfc_state_history.bin"),
                 // TODO: no idea what what this number should be set to
-                NonZeroUsize::new(512).unwrap(),
+                NonZeroUsize::new(3).unwrap(),
             ),
         }
     }
@@ -53,7 +52,7 @@ where
     SerializationError(#[from] bincode::Error),
 }
 
-#[derive(Serialize, Deserialize)]
+#[derive(Default, Serialize, Deserialize)]
 pub struct WaveFunctionCollapse<GT, T>
 where
     GT: ?Sized + GridType<T>,
@@ -61,7 +60,8 @@ where
 {
     grid: Grid<GT, T>,
     possibilities: Vec<HashSet<T>>,
-    compatibility: CompatibilityMap<GT, T>,
+    #[serde(skip_serializing, skip_deserializing)]
+    compatibility: Option<CompatibilityMap<GT, T>>,
     propagation_queue: VecDeque<(usize, usize)>,
     entropy_queue: BinaryHeap<Reverse<(usize, usize, usize)>>,
     last_set_index: Option<usize>,
@@ -71,8 +71,8 @@ where
 
 impl<GT, T> WaveFunctionCollapse<GT, T>
 where
-    GT: ?Sized + GridType<T> + Serialize + for<'a> Deserialize<'a>,
-    T: Tile<T> + Serialize + for<'a> Deserialize<'a>,
+    GT: ?Sized + GridType<T> + Serialize + for<'a> Deserialize<'a> + Default,
+    T: Tile<T> + Serialize + for<'a> Deserialize<'a> + Default,
     <<GT as GridType<T>>::SideType as TryFrom<Side>>::Error: Debug,
 {
     pub fn new(grid: Grid<GT, T>) -> Self {
@@ -102,7 +102,7 @@ where
         Self {
             grid,
             possibilities,
-            compatibility,
+            compatibility: Some(compatibility),
             propagation_queue,
             entropy_queue,
             last_set_index: None,
@@ -129,7 +129,12 @@ where
             };
             for (side, neighbor_index_opt) in self.grid.neighbor_indexes(x, y) {
                 if let Some(neighbor_index) = neighbor_index_opt {
-                    if let Some(allowed_tiles) = self.compatibility.get(tile, side) {
+                    if let Some(allowed_tiles) = self
+                        .compatibility
+                        .as_ref()
+                        .expect("expected compatibility map")
+                        .get(tile, side)
+                    {
                         let possibilities = &mut self.possibilities[neighbor_index];
                         let old_len = possibilities.len();
                         possibilities.retain(|t| allowed_tiles.contains(t));
@@ -169,8 +174,10 @@ where
         let (x, y) = self.grid.index_to_xy(last_set_index);
         let prev_state = bincode::deserialize::<Self>(&prev_state_bin)?;
         let state_history = self.state_history.take();
+        let compatibility = self.compatibility.take();
         *self = prev_state;
         self.state_history = state_history;
+        self.compatibility = compatibility;
         self.possibilities[last_set_index].remove(&last_set_tile);
 
         self.propagation_queue.push_back((x, y));
@@ -193,7 +200,12 @@ where
                 let Some(nix) = nix else {
                     continue;
                 };
-                if let Some(compatible) = self.compatibility.get(tile, side) {
+                if let Some(compatible) = self
+                    .compatibility
+                    .as_ref()
+                    .expect("expected compatibility map")
+                    .get(tile, side)
+                {
                     self.possibilities[nix].retain(|p| compatible.contains(p));
                 } else {
                     unreachable!("bad compatibility map?")
@@ -306,7 +318,12 @@ where
                     // if this was in bounds and none, it will still be caught eventually in the loop
                     continue;
                 };
-                let Some(compatible) = self.compatibility.get(tile, side) else {
+                let Some(compatible) = self
+                    .compatibility
+                    .as_ref()
+                    .expect("expected compatibility map")
+                    .get(tile, side)
+                else {
                     unreachable!("bad compatibility map?")
                 };
                 if !compatible.contains(&neighbor_tile) {
@@ -337,7 +354,12 @@ where
                     // if this was in bounds and none, it will still be caught eventually in the loop
                     continue;
                 };
-                let Some(compatible) = self.compatibility.get(tile, side) else {
+                let Some(compatible) = self
+                    .compatibility
+                    .as_ref()
+                    .expect("expected compatibility map")
+                    .get(tile, side)
+                else {
                     unreachable!("bad compatibility map?")
                 };
                 if !compatible.contains(&neighbor_tile) {

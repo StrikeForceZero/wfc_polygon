@@ -1,8 +1,23 @@
 use bevy::prelude::*;
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Reflect, Serialize, Deserialize)]
+#[derive(
+    Default,
+    Debug,
+    Clone,
+    Copy,
+    PartialEq,
+    Eq,
+    Hash,
+    Ord,
+    PartialOrd,
+    Reflect,
+    Serialize,
+    Deserialize,
+)]
 pub enum HexSegmentId {
+    #[default]
+    None,
     Grass,
     Mountain,
     MountainPeak,
@@ -26,6 +41,7 @@ impl HexSegmentId {
     }
     pub fn compatible(&self) -> Vec<HexSegmentId> {
         match self {
+            Self::None => vec![],
             Self::Grass => vec![Self::Grass, Self::Sand, Self::Mountain],
             Self::Mountain => vec![Self::Mountain, Self::MountainPeak, Self::Grass],
             Self::MountainPeak => vec![Self::Mountain, Self::Creek],
@@ -37,6 +53,7 @@ impl HexSegmentId {
     }
     pub fn as_color(&self) -> Color {
         match self {
+            Self::None => Color::BLACK,
             HexSegmentId::Grass => Color::DARK_GREEN,
             HexSegmentId::Mountain => Color::GRAY,
             HexSegmentId::MountainPeak => Color::WHITE,

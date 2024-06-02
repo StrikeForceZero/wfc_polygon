@@ -4,11 +4,11 @@ use serde::{Deserialize, Serialize};
 use serde::de::DeserializeOwned;
 use thiserror::Error;
 
-use crate::compatibility_map::CompatibilityMapError;
 use crate::{
-    FlatTopHexSide, FlatTopHexagon, HexagonType, PointyTopHexSide, PointyTopHexagon, Polygon, Side,
+    FlatTopHexagon, FlatTopHexSide, HexagonType, PointyTopHexagon, PointyTopHexSide, Polygon, Side,
     Square, SquareSide, Tile, Triangle, TriangleSide,
 };
+use crate::compatibility_map::CompatibilityMapError;
 
 macro_rules! cast_tuple {
     ($from:ty, $to:ty, $tuple:expr) => {{
@@ -118,7 +118,7 @@ where
     CompatibilityViolation,
 }
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Default, Clone, Serialize, Deserialize)]
 pub struct Grid<GT, T>
 where
     GT: ?Sized + GridType<T>,
@@ -396,17 +396,29 @@ where
 #[cfg(test)]
 mod tests {
     use crate::compatibility_map::CompatibilityMap;
-    use crate::wfc::WaveFunctionCollapse;
     use crate::TileInstance;
+    use crate::wfc::WaveFunctionCollapse;
 
     use super::*;
 
     #[test]
     fn test_square() {
         #[derive(
-            Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Serialize, Deserialize,
+            Default,
+            Debug,
+            Clone,
+            Copy,
+            PartialEq,
+            Eq,
+            Hash,
+            Ord,
+            PartialOrd,
+            Serialize,
+            Deserialize,
         )]
         enum MyTile {
+            #[default]
+            None,
             GrassWater,
             Grass,
             Water,
@@ -414,6 +426,7 @@ mod tests {
         impl MyTile {
             fn compatible(&self) -> Vec<Self> {
                 match self {
+                    MyTile::None => vec![],
                     MyTile::GrassWater => vec![MyTile::GrassWater, MyTile::Grass, MyTile::Water],
                     MyTile::Grass => vec![MyTile::GrassWater, MyTile::Grass],
                     MyTile::Water => vec![MyTile::GrassWater, MyTile::Water],
@@ -423,6 +436,7 @@ mod tests {
         impl Display for MyTile {
             fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
                 let str = match self {
+                    MyTile::None => " ",
                     MyTile::GrassWater => "▒",
                     MyTile::Grass => "▓",
                     MyTile::Water => "░",
@@ -467,14 +481,29 @@ mod tests {
 
     #[test]
     fn test_is_valid() -> anyhow::Result<()> {
-        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Serialize, Deserialize)]
+        #[derive(
+            Default,
+            Debug,
+            Clone,
+            Copy,
+            PartialEq,
+            Eq,
+            Hash,
+            Ord,
+            PartialOrd,
+            Serialize,
+            Deserialize,
+        )]
         enum MyTile {
+            #[default]
+            None,
             A,
             B,
         }
         impl MyTile {
             fn compatible(&self) -> Vec<Self> {
                 match self {
+                    MyTile::None => vec![],
                     MyTile::A => vec![MyTile::A],
                     MyTile::B => vec![],
                 }
@@ -483,6 +512,7 @@ mod tests {
         impl Display for MyTile {
             fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
                 let str = match self {
+                    MyTile::None => " ",
                     MyTile::A => "A",
                     MyTile::B => "B",
                 };

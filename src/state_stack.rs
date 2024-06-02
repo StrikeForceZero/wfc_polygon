@@ -7,7 +7,9 @@ use memmap2::{MmapMut, MmapOptions};
 
 pub struct StateStack {
     mmap: MmapMut,
+    file: std::fs::File,
     offsets: Vec<usize>,
+    capacity: usize,
 }
 
 impl StateStack {
@@ -24,17 +26,26 @@ impl StateStack {
 
         Ok(Self {
             mmap,
+            file,
             offsets: Vec::new(),
+            capacity,
         })
+    }
+
+    fn resize(&mut self, new_capacity: usize) -> std::io::Result<()> {
+        println!("resizing mmap {} -> {new_capacity}", self.capacity);
+        self.file.set_len(new_capacity as u64)?;
+        self.mmap = unsafe { MmapOptions::new().map_mut(&self.file)? };
+        self.capacity = new_capacity;
+        Ok(())
     }
 
     pub fn push(&mut self, state: &[u8]) -> std::io::Result<()> {
         let current_offset = self.current_offset();
-        if current_offset + state.len() > self.mmap.len() {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::Other,
-                "Not enough space in mmap",
-            ));
+        if current_offset + state.len() > self.capacity {
+            // Double the capacity or increase to fit the new state
+            let new_capacity = (self.capacity.max(state.len() + current_offset)) * 2;
+            self.resize(new_capacity)?;
         }
         self.mmap[current_offset..current_offset + state.len()].copy_from_slice(state);
         self.offsets.push(current_offset + state.len());
