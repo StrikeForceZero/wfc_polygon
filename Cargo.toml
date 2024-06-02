@@ -3,6 +3,7 @@ name = "wfc_polygon"
 version = "0.0.0"
 edition = "2021"
 authors = ["Brett Striker <strikeforcezero@gmail.com"]
+license = "MIT OR Apache-2.0"
 
 [workspace]
 members = ["examples/*"]
