@@ -1,8 +1,9 @@
 use std::io::{Read, Write};
 
+use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 use bevy::prelude::*;
 use bevy::sprite::{MaterialMesh2dBundle, Mesh2dHandle};
-use bevy::utils::{HashMap, HashSet};
+use bevy::utils::HashSet;
 use bevy_inspector_egui::bevy_egui::EguiContexts;
 use bevy_inspector_egui::egui;
 use bevy_mod_picking::highlight::InitialHighlight;
@@ -14,7 +15,7 @@ use wfc_polygon::wfc::WaveFunctionCollapse;
 use crate::{HEX_MODE, HexMode};
 use crate::color_wrapper::ColorWrapper;
 use crate::component::*;
-use crate::event::{ChangeHexMode, ClearCache, MapGenerated, RegenerateMap};
+use crate::event::{ChangeHexMode, ClearCache, GridCellSet, MapGenerated, RegenerateMap, WfcStep};
 use crate::hex::map::FlatTopHexagonalSegmentIdMap;
 use crate::hex::tile_id::HexTileId;
 use crate::resource::*;
@@ -22,7 +23,7 @@ use crate::resource::*;
 pub fn setup(
     mut commands: Commands,
     hex_scale: Res<HexScale>,
-    mut event_writer: EventWriter<RegenerateMap>,
+    mut regenerate_map_event_writer: EventWriter<RegenerateMap>,
 ) {
     commands.spawn((
         MainCamera,
@@ -36,31 +37,70 @@ pub fn setup(
             ..default()
         },
     ));
-    event_writer.send(RegenerateMap);
+    regenerate_map_event_writer.send(RegenerateMap);
 }
 
-pub fn gen_map(mut event_writer: EventWriter<MapGenerated>) {
-    println!("generating map");
-    let compatibility_map = HexTileId::get_compatibility_map();
-    println!(
-        "compatibility_map size: {:.4}Mb",
-        compatibility_map.estimated_size() / 1024 / 1024
-    );
-    println!("initializing wfc");
-    let mut wfc = WaveFunctionCollapse::new_with_compatibility(
-        FlatTopHexGrid::new(100, 100),
-        compatibility_map,
-    );
+#[derive(Default)]
+pub struct GenMapLocalState {
+    wfc: Option<WaveFunctionCollapse<FlatTopHexGrid, HexTileId>>,
+}
 
-    let max_retries = 100;
-    for n in 1..=max_retries {
-        println!("collapse attempt {n}/{max_retries}");
-        if wfc.collapse().unwrap_or_else(|err| panic!("{err}")) {
-            println!("collapse successful");
-            break;
+pub fn gen_map(
+    mut local_state: Local<GenMapLocalState>,
+    mut regenerate_map_event_writer: EventWriter<MapGenerated>,
+    mut wfc_step_event_writer: EventWriter<WfcStep>,
+    mut grid_cell_set_event_writer: EventWriter<GridCellSet>,
+    grid_size: Res<GridSize>,
+) {
+    let mut consume_wfc = false;
+    if let Some(inner_wfc) = local_state.wfc.as_mut() {
+        if let Some((tile, (x, y))) = inner_wfc.step() {
+            // println!("set ({x}, {y}) - {tile:?}");
+            grid_cell_set_event_writer.send(GridCellSet {
+                tile,
+                pos: UVec2::from((x as u32, y as u32)),
+            });
+            wfc_step_event_writer.send(WfcStep);
+        } else {
+            consume_wfc = true;
         }
+    } else {
+        println!("generating map");
+        let compatibility_map = HexTileId::get_compatibility_map();
+        println!(
+            "compatibility_map size: {:.4}Mb",
+            compatibility_map.estimated_size() / 1024 / 1024
+        );
+        println!("initializing wfc");
+        let mut wfc = WaveFunctionCollapse::new_with_compatibility(
+            FlatTopHexGrid::new(grid_size.0.x as usize, grid_size.0.y as usize),
+            compatibility_map,
+        );
+
+        wfc.initialize_collapse();
+
+        local_state.wfc = Some(wfc);
+
+        wfc_step_event_writer.send(WfcStep);
     }
-    event_writer.send(MapGenerated(wfc));
+    if consume_wfc {
+        regenerate_map_event_writer.send(MapGenerated(
+            local_state
+                .wfc
+                .take()
+                .unwrap_or_else(|| panic!("failed to consume wfc")),
+        ));
+    }
+}
+
+pub fn wfc_step_handler(
+    mut commands: Commands,
+    gen_map_system_id: Res<GenMapSystemId>,
+    mut step_event_reader: EventReader<WfcStep>,
+) {
+    for _ in step_event_reader.read() {
+        commands.run_system(gen_map_system_id.0);
+    }
 }
 
 pub fn input_handler(
@@ -68,7 +108,9 @@ pub fn input_handler(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut regen_map_event_writer: EventWriter<RegenerateMap>,
     mut change_hex_mode_event_writer: EventWriter<ChangeHexMode>,
-    mut camera_query: Query<&mut Transform, With<MainCamera>>,
+    mut camera_query: Query<(&mut Transform, &mut OrthographicProjection), With<MainCamera>>,
+    mut scroll_evr: EventReader<MouseWheel>,
+    hex_scale: Res<HexScale>,
     time: Res<Time>,
 ) {
     if keyboard_input.pressed(KeyCode::ControlLeft) {
@@ -85,23 +127,29 @@ pub fn input_handler(
             change_hex_mode_event_writer.send(ChangeHexMode(new_hex_mode));
         }
     }
-    let speed = 50.0;
-    for mut camera_transform in camera_query.iter_mut() {
+    for ev in scroll_evr.read() {
+        let delta = match ev.unit {
+            MouseScrollUnit::Line => ev.y,
+            MouseScrollUnit::Pixel => ev.y,
+        };
+        for (_, mut projection) in camera_query.iter_mut() {
+            projection.scale -= delta;
+            projection.scale = projection.scale.max(0.05 * hex_scale.0);
+        }
+    }
+    let speed = 200.0 * time.delta_seconds();
+    for (mut camera_transform, _) in camera_query.iter_mut() {
         if keyboard_input.pressed(KeyCode::KeyW) {
-            camera_transform.translation +=
-                Vec2::new(0.0, 1.0).extend(0.0) * speed * time.delta_seconds();
+            camera_transform.translation += Vec2::new(0.0, 1.0).extend(0.0) * speed;
         }
         if keyboard_input.pressed(KeyCode::KeyS) {
-            camera_transform.translation +=
-                Vec2::new(0.0, -1.0).extend(0.0) * speed * time.delta_seconds();
+            camera_transform.translation += Vec2::new(0.0, -1.0).extend(0.0) * speed;
         }
         if keyboard_input.pressed(KeyCode::KeyD) {
-            camera_transform.translation +=
-                Vec2::new(1.0, 0.0).extend(0.0) * speed * time.delta_seconds();
+            camera_transform.translation += Vec2::new(1.0, 0.0).extend(0.0) * speed;
         }
         if keyboard_input.pressed(KeyCode::KeyA) {
-            camera_transform.translation +=
-                Vec2::new(-1.0, 0.0).extend(0.0) * speed * time.delta_seconds();
+            camera_transform.translation += Vec2::new(-1.0, 0.0).extend(0.0) * speed;
         }
     }
 }
@@ -228,17 +276,127 @@ pub fn clear_cache_event_handler(
     }
 }
 
-pub fn map_generated_event_handler(
-    mut commands: Commands,
-    mut events: EventReader<MapGenerated>,
-    hex_query: Query<Entity, With<HexData>>,
+pub struct CreateHexOptions {
+    tile: Option<HexTileId>,
+    ix: usize,
+    pos: UVec2,
+    possibilities: HashSet<HexTileId>,
+    is_invalid: bool,
+}
+
+fn create_hex(
+    create_hex_options: CreateHexOptions,
+    hex_scale: &Res<HexScale>,
+    commands: &mut Commands,
+    meshes: &mut ResMut<Assets<Mesh>>,
+    materials: &mut ResMut<Assets<ColorMaterial>>,
+    color_material_map: &mut ResMut<ColorMaterialMap>,
+) {
+    let possibilities = create_hex_options.possibilities.clone();
+    let scale = hex_scale.0;
+    let tile = &create_hex_options.tile.clone();
+    let pos = create_hex_options.pos;
+    let ix = create_hex_options.ix;
+    let x = pos.x;
+    let y = pos.y;
+    let translate_x = x as f32 * 1.5;
+    let translate_y = y as f32 * 1.732;
+    let mut position = Vec3::new(translate_x, translate_y, 0.0) * scale
+        - Vec2::new(16.0, 20.0).extend(0.0) * scale;
+
+    if x % 2 == 0 {
+        position.y += 0.9 * scale;
+    }
+    let hex_sides: Option<FlatTopHexagonalSegmentIdMap> = tile.map(|tile| tile.into());
+    let mesh_color_tuples = crate::hex::mesh::hex_mesh(hex_sides);
+    let id = commands
+        .spawn((
+            HexData(hex_sides),
+            HexPos(UVec2::new(x, y)),
+            HexPossibilities(possibilities),
+            SpatialBundle::from_transform(Transform::from_translation(position)),
+        ))
+        .with_children(|children| {
+            for (mesh, color) in mesh_color_tuples {
+                // AABBs don't get recalculated and break ray-casts / picking, so we need to either:
+                // - resize mesh via mesh.scaled_by instead of transform.scale
+                // - use transform.scale and call mesh.compute_aabb() after the mesh is loaded in the scene to fix it
+                // https://github.com/bevyengine/bevy/issues/4294
+                let mesh = mesh.scaled_by(Vec2::splat(0.95 * scale).extend(0.0));
+                let mesh = Mesh2dHandle(meshes.add(mesh));
+                let handle = &color_material_map
+                    .0
+                    .entry(ColorWrapper(color))
+                    .or_insert_with(|| materials.add(ColorMaterial::from(color)));
+                let material = (**handle).clone();
+                children.spawn((
+                    InnerHex,
+                    MaterialMesh2dBundle {
+                        mesh,
+                        material,
+                        ..default()
+                    },
+                    PickableBundle::default(),
+                ));
+            }
+            children.spawn(Text2dBundle {
+                text: Text::from_section(
+                    ix.to_string(),
+                    TextStyle {
+                        font_size: 15.0,
+                        color: Color::PURPLE,
+                        ..default()
+                    },
+                ),
+                transform: Transform::from_translation(Vec2::default().extend(10.0)),
+                ..default()
+            });
+        })
+        .id();
+    if create_hex_options.is_invalid {
+        commands.entity(id).insert(HexInvalid);
+    }
+}
+
+pub fn grid_cell_set_event_handler(
+    mut grid_cell_set: EventReader<GridCellSet>,
+    grid_size: Res<GridSize>,
     hex_scale: Res<HexScale>,
+    mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
+    mut color_material_map: ResMut<ColorMaterialMap>,
+) {
+    for gcs in grid_cell_set.read() {
+        create_hex(
+            CreateHexOptions {
+                possibilities: HashSet::new(),
+                tile: gcs.tile,
+                ix: gcs.pos.x as usize * grid_size.0.x as usize + gcs.pos.y as usize,
+                pos: gcs.pos,
+                is_invalid: false,
+            },
+            &hex_scale,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut color_material_map,
+        );
+    }
+}
+
+pub fn map_generated_event_handler(
+    mut events: EventReader<MapGenerated>,
+    hex_query: Query<(Entity, &HexPos), With<HexData>>,
+    hex_scale: Res<HexScale>,
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut color_material_map: ResMut<ColorMaterialMap>,
 ) {
     if let Some(MapGenerated(wfc)) = events.read().last() {
         // despawn last map
-        for entity in hex_query.iter() {
+        for (entity, _) in hex_query.iter() {
             commands.entity(entity).despawn_recursive();
         }
 
@@ -254,7 +412,6 @@ pub fn map_generated_event_handler(
             HashSet::new()
         };
 
-        let mut color_materials: HashMap<ColorWrapper, Handle<ColorMaterial>> = HashMap::new();
         for (ix, (cell, possibilities)) in wfc
             .grid()
             .cells()
@@ -264,67 +421,20 @@ pub fn map_generated_event_handler(
         {
             let (x, y) = wfc.grid().index_to_xy(ix);
             let is_hex_invalid = invalids.contains(&(x, y));
-            let translate_x = x as f32 * 1.5;
-            let translate_y = y as f32 * 1.732;
-            let mut position = Vec3::new(translate_x, translate_y, 0.0) * hex_scale.0
-                - Vec2::new(16.0, 20.0).extend(0.0) * hex_scale.0;
-
-            if x % 2 == 0 {
-                position.y += 0.9 * hex_scale.0;
-            }
-            let hex_sides: Option<FlatTopHexagonalSegmentIdMap> = (*cell).map(|tile| tile.into());
-            let mesh_color_tuples = crate::hex::mesh::hex_mesh(hex_sides);
-            let id = commands
-                .spawn((
-                    HexData(hex_sides),
-                    HexPos(UVec2::new(x as u32, y as u32)),
-                    HexPossibilities(
-                        possibilities
-                            .iter()
-                            .cloned()
-                            .collect::<HashSet<HexTileId>>(),
-                    ),
-                    SpatialBundle::from_transform(Transform::from_translation(position)),
-                ))
-                .with_children(|children| {
-                    for (mesh, color) in mesh_color_tuples {
-                        // AABBs don't get recalculated and break ray-casts / picking, so we need to either:
-                        // - resize mesh via mesh.scaled_by instead of transform.scale
-                        // - use transform.scale and call mesh.compute_aabb() after the mesh is loaded in the scene to fix it
-                        // https://github.com/bevyengine/bevy/issues/4294
-                        let mesh = mesh.scaled_by(Vec2::splat(0.95 * hex_scale.0).extend(0.0));
-                        let mesh = Mesh2dHandle(meshes.add(mesh));
-                        let handle = &*color_materials
-                            .entry(ColorWrapper(color))
-                            .or_insert_with(|| materials.add(ColorMaterial::from(color)));
-                        let material = handle.clone();
-                        children.spawn((
-                            InnerHex,
-                            MaterialMesh2dBundle {
-                                mesh,
-                                material,
-                                ..default()
-                            },
-                            PickableBundle::default(),
-                        ));
-                    }
-                    children.spawn(Text2dBundle {
-                        text: Text::from_section(
-                            ix.to_string(),
-                            TextStyle {
-                                font_size: 15.0,
-                                color: Color::PURPLE,
-                                ..default()
-                            },
-                        ),
-                        transform: Transform::from_translation(Vec2::default().extend(10.0)),
-                        ..default()
-                    });
-                })
-                .id();
-            if is_hex_invalid {
-                commands.entity(id).insert(HexInvalid);
-            }
+            create_hex(
+                CreateHexOptions {
+                    possibilities: HashSet::new(),
+                    tile: *cell,
+                    ix,
+                    pos: UVec2::new(x as u32, y as u32),
+                    is_invalid: is_hex_invalid,
+                },
+                &hex_scale,
+                &mut commands,
+                &mut meshes,
+                &mut materials,
+                &mut color_material_map,
+            );
         }
     }
 }

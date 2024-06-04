@@ -6,7 +6,6 @@ use thiserror::Error;
 
 pub mod compatibility_map;
 pub mod grid;
-mod state_stack;
 pub mod wfc;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Serialize, Deserialize)]
@@ -47,7 +46,9 @@ pub enum HexagonType {
     PointyTop,
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Serialize, Deserialize)]
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Serialize, Deserialize,
+)]
 pub struct Triangle;
 
 impl From<Triangle> for Polygon {
@@ -56,7 +57,9 @@ impl From<Triangle> for Polygon {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Serialize, Deserialize)]
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Serialize, Deserialize,
+)]
 pub struct Square;
 
 impl From<Square> for Polygon {
@@ -65,7 +68,9 @@ impl From<Square> for Polygon {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Serialize, Deserialize)]
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Serialize, Deserialize,
+)]
 pub struct FlatTopHexagon;
 
 impl From<FlatTopHexagon> for Polygon {
@@ -74,7 +79,9 @@ impl From<FlatTopHexagon> for Polygon {
     }
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Serialize, Deserialize)]
+#[derive(
+    Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Serialize, Deserialize,
+)]
 pub struct PointyTopHexagon;
 
 impl From<PointyTopHexagon> for Polygon {
@@ -262,10 +269,7 @@ impl From<PointyTopHexSide> for Side {
     }
 }
 
-pub trait TileInstance:
-    Debug + Clone + Copy + PartialEq + PartialOrd + Ord + Hash
-{
-}
+pub trait TileInstance: Debug + Clone + Copy + PartialEq + PartialOrd + Ord + Hash {}
 
 pub trait Tile<T: TileInstance>: TileInstance {
     fn all() -> Vec<T>;

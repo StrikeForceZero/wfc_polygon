@@ -1,3 +1,4 @@
+use bevy::math::UVec2;
 use bevy::prelude::Event;
 
 use wfc_polygon::grid::FlatTopHexGrid;
@@ -14,6 +15,15 @@ pub struct ClearCache;
 
 #[derive(Event)]
 pub struct MapGenerated(pub WaveFunctionCollapse<FlatTopHexGrid, HexTileId>);
+
+#[derive(Event)]
+pub struct GridCellSet {
+    pub tile: Option<HexTileId>,
+    pub pos: UVec2,
+}
+
+#[derive(Clone, Event)]
+pub struct WfcStep;
 
 #[derive(Clone, Event)]
 pub struct ChangeHexMode(pub HexMode);
