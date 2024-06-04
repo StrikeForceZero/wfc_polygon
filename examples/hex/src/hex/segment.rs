@@ -47,7 +47,6 @@ impl HexSegmentId {
                 Self::Grass,
                 Self::Sand,
                 Self::Mountain,
-                Self::River,
                 //Self::Creek,
             ],
             Self::Mountain => vec![
@@ -60,7 +59,6 @@ impl HexSegmentId {
                 Self::River,
                 Self::Ocean,
                 //Self::Creek,
-                Self::Grass,
                 Self::Sand,
             ],
             // Self::Creek => vec![
@@ -72,10 +70,9 @@ impl HexSegmentId {
             //     Self::Mountain,
             //     Self::Sand,
             // ],
-            Self::Ocean => vec![Self::Ocean, Self::River, Self::Sand /*Self::Creek*/],
+            Self::Ocean => vec![Self::Ocean, Self::River /*Self::Creek*/],
             Self::Sand => vec![
                 Self::Sand,
-                Self::Ocean,
                 Self::Grass,
                 Self::River,
                 // Self::Creek,

@@ -94,14 +94,14 @@ impl FlatTopHexagonalSegmentIdMap {
                     }
                 }
                 HexSegmentId::River => {
-                    if FLAT_HEX_SIDES
-                        .into_iter()
-                        .filter(|&side| self.get_side(side) == seg)
-                        .count()
-                        > 2
-                    {
-                        return false;
-                    }
+                    // if FLAT_HEX_SIDES
+                    //     .into_iter()
+                    //     .filter(|&side| self.get_side(side) == seg)
+                    //     .count()
+                    //     > 2
+                    // {
+                    //     return false;
+                    // }
                 }
                 HexSegmentId::Sand => {}
             }

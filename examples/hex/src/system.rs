@@ -47,6 +47,8 @@ pub struct GenMapLocalState {
 }
 
 pub fn gen_map(
+    mut commands: Commands,
+    hex_query: Query<Entity, With<HexData>>,
     mut local_state: Local<GenMapLocalState>,
     mut regenerate_map_event_writer: EventWriter<MapGenerated>,
     mut wfc_step_event_writer: EventWriter<WfcStep>,
@@ -66,12 +68,18 @@ pub fn gen_map(
             consume_wfc = true;
         }
     } else {
+        for entity in hex_query.iter() {
+            commands.entity(entity).despawn_recursive();
+        }
         println!("generating map");
         let compatibility_map = HexTileId::get_compatibility_map();
         println!(
             "compatibility_map size: {:.4}Mb",
             compatibility_map.estimated_size() / 1024 / 1024
         );
+        if let Err(err) = compatibility_map.check_contradictions() {
+            panic!("contradictions in compat map found: {err}");
+        }
         println!("initializing wfc");
         let mut wfc = WaveFunctionCollapse::new_with_compatibility(
             FlatTopHexGrid::new(grid_size.0.x as usize, grid_size.0.y as usize),
@@ -390,23 +398,32 @@ pub fn grid_cell_set_event_handler(
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut color_material_map: ResMut<ColorMaterialMap>,
     hex_text_enabled: Res<HexTextEnabled>,
+    hex_query: Query<(Entity, &HexPos)>,
 ) {
     for gcs in grid_cell_set.read() {
-        create_hex(
-            CreateHexOptions {
-                possibilities: HashSet::new(),
-                tile: gcs.tile,
-                ix: gcs.pos.x as usize * grid_size.0.x as usize + gcs.pos.y as usize,
-                pos: gcs.pos,
-                is_invalid: false,
-            },
-            &hex_scale,
-            &mut commands,
-            &mut meshes,
-            &mut materials,
-            &mut color_material_map,
-            &hex_text_enabled,
-        );
+        if gcs.tile.is_none() {
+            for (entity, pos) in hex_query.iter() {
+                if pos.0 == gcs.pos {
+                    commands.entity(entity).despawn_recursive();
+                }
+            }
+        } else {
+            create_hex(
+                CreateHexOptions {
+                    possibilities: HashSet::new(),
+                    tile: gcs.tile,
+                    ix: gcs.pos.x as usize * grid_size.0.x as usize + gcs.pos.y as usize,
+                    pos: gcs.pos,
+                    is_invalid: false,
+                },
+                &hex_scale,
+                &mut commands,
+                &mut meshes,
+                &mut materials,
+                &mut color_material_map,
+                &hex_text_enabled,
+            );
+        }
     }
 }
 
