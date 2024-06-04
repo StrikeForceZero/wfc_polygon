@@ -16,7 +16,7 @@ impl Plugin for SubPlugin {
             /* rustfmt next line chain */
             .insert_resource(gen_map_res)
             .insert_resource(HexScale(20.0))
-            .insert_resource(GridSize(UVec2::splat(100)))
+            .insert_resource(GridSize(UVec2::splat(40)))
             .insert_resource(HexTextEnabled(false))
             .register_type::<HexPos>()
             .register_type::<HexData>()

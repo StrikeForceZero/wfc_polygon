@@ -156,7 +156,7 @@ pub fn input_handler(
             MouseScrollUnit::Pixel => ev.y,
         };
         for (_, mut projection) in camera_query.iter_mut() {
-            projection.scale -= delta;
+            projection.scale -= delta * 0.5;
             projection.scale = projection.scale.max(0.05 * hex_scale.0);
         }
     }

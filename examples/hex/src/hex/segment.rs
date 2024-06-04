@@ -82,12 +82,12 @@ impl HexSegmentId {
     pub fn probability(&self) -> f64 {
         match self {
             HexSegmentId::None => 0.0,
-            HexSegmentId::Grass => 0.75,
-            HexSegmentId::Mountain => 0.2,
+            HexSegmentId::Grass => 0.8,
+            HexSegmentId::Mountain => 0.25,
             HexSegmentId::MountainPeak => 0.5,
-            HexSegmentId::River => 0.3,
-            HexSegmentId::Ocean => 0.75,
-            HexSegmentId::Sand => 0.25,
+            HexSegmentId::River => 0.6,
+            HexSegmentId::Ocean => 0.7,
+            HexSegmentId::Sand => 0.35,
         }
     }
     pub fn as_color(&self) -> Color {
