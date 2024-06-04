@@ -145,7 +145,7 @@ where
             SetAny(Vec<T>),
             Backtrack,
         }
-        if let Some(Reverse((_, x, y))) = self.entropy_queue.pop() {
+        while let Some(Reverse((_, x, y))) = self.entropy_queue.pop() {
             let index = self.grid.xy_to_index(x, y);
             let state = if self.possibilities[index].is_empty() {
                 State::Backtrack
@@ -160,13 +160,15 @@ where
                 }
             };
             let mut was_set = false;
+            let mut skip = false;
             let res = match state {
                 State::SetAny(choices) => {
                     was_set = true;
                     if self.grid.get(x, y).is_some() {
                         // TODO: we should prevent redundant entries being inserted into binary heap
-                        // this would likely be a redundant set so just do next step
-                        self.step().unwrap_or((None, (x, y)))
+                        // this would likely be a redundant set so we flag to skip if the grid is not filled
+                        skip = true;
+                        (None, (x, y))
                     } else {
                         let mut rng = thread_rng();
                         let Ok(&tile) = choices
@@ -206,14 +208,18 @@ where
                     (None, (x, y))
                 }
             };
+            // if filled and last entry was a set, then we clear the queues before returning the result
             if self.grid.is_filled() && was_set {
                 self.propagation_queue.clear();
                 self.entropy_queue.clear();
             }
-            Some(res)
-        } else {
-            None
+            // otherwise if we flagged to skip then we continue processing the next item in the queue instead of returning a result
+            else if skip {
+                continue;
+            }
+            return Some(res);
         }
+        None
     }
 
     pub fn initialize_collapse(&mut self) {
