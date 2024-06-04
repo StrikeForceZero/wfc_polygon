@@ -163,25 +163,31 @@ where
             let res = match state {
                 State::SetAny(choices) => {
                     was_set = true;
-                    let mut rng = thread_rng();
-                    let Ok(&tile) = choices
-                        .into_iter()
-                        .collect::<Vec<_>>()
-                        .choose_weighted(&mut rng, |&t| {
-                            T::probability().get(t).cloned().unwrap_or(0.0)
-                        })
-                        .cloned()
-                    else {
-                        unreachable!()
-                    };
-                    self.grid.set(x, y, tile);
-                    self.set_history.push(index);
-                    // set the possibilities to the tile we just set it as
-                    self.possibilities[index] = HashSet::from([tile]);
+                    if self.grid.get(x, y).is_some() {
+                        // TODO: we should prevent redundant entries being inserted into binary heap
+                        // this would likely be a redundant set so just do next step
+                        self.step().unwrap_or((None, (x, y)))
+                    } else {
+                        let mut rng = thread_rng();
+                        let Ok(&tile) = choices
+                            .into_iter()
+                            .collect::<Vec<_>>()
+                            .choose_weighted(&mut rng, |&t| {
+                                T::probability().get(t).cloned().unwrap_or(0.0)
+                            })
+                            .cloned()
+                        else {
+                            unreachable!()
+                        };
+                        self.grid.set(x, y, tile);
+                        self.set_history.push(index);
+                        // set the possibilities to the tile we just set it as
+                        self.possibilities[index] = HashSet::from([tile]);
 
-                    self.propagation_queue.push_back((x, y));
-                    self.propagate_constraints();
-                    (Some(tile), (x, y))
+                        self.propagation_queue.push_back((x, y));
+                        self.propagate_constraints();
+                        (Some(tile), (x, y))
+                    }
                 }
                 State::Backtrack => {
                     println!("backtracking");
