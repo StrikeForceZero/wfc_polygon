@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use bevy::prelude::*;
 use itertools::iproduct;
 use serde::{Deserialize, Serialize};
@@ -27,11 +29,28 @@ use crate::hex::segment::HexSegmentId;
 )]
 pub struct HexTileId(pub HexSegmentIdTuple);
 
+impl HexTileId {
+    fn probability(&self) -> f64 {
+        let tuple = self.0;
+        [tuple.0, tuple.1, tuple.2, tuple.3, tuple.4, tuple.5]
+            .map(|t| t.probability())
+            .iter()
+            .sum::<f64>()
+            / 6.0
+    }
+}
+
 impl TileInstance for HexTileId {}
 
 impl Tile<Self> for HexTileId {
     fn all() -> Vec<Self> {
         Self::permutations()
+    }
+    fn probability() -> HashMap<Self, f64> {
+        Self::all()
+            .into_iter()
+            .map(|t| (t, t.probability()))
+            .collect()
     }
 }
 

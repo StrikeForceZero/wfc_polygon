@@ -164,10 +164,12 @@ where
                 State::SetAny(choices) => {
                     was_set = true;
                     let mut rng = thread_rng();
-                    let Some(&tile) = choices
+                    let Ok(&tile) = choices
                         .into_iter()
                         .collect::<Vec<_>>()
-                        .choose(&mut rng)
+                        .choose_weighted(&mut rng, |&t| {
+                            T::probability().get(t).cloned().unwrap_or(0.0)
+                        })
                         .cloned()
                     else {
                         unreachable!()
