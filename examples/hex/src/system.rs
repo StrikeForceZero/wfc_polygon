@@ -2,7 +2,7 @@ use std::io::{Read, Write};
 
 use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 use bevy::prelude::*;
-use bevy::prelude::KeyCode::KeyT;
+use bevy::prelude::KeyCode::{KeyT, KeyY};
 use bevy::sprite::{MaterialMesh2dBundle, Mesh2dHandle};
 use bevy::utils::HashSet;
 use bevy_inspector_egui::bevy_egui::EguiContexts;
@@ -53,19 +53,25 @@ pub fn gen_map(
     mut regenerate_map_event_writer: EventWriter<MapGenerated>,
     mut wfc_step_event_writer: EventWriter<WfcStep>,
     mut grid_cell_set_event_writer: EventWriter<GridCellSet>,
+    wfc_animate: Res<WfcAnimate>,
     grid_size: Res<GridSize>,
 ) {
     let mut consume_wfc = false;
     if let Some(inner_wfc) = local_state.wfc.as_mut() {
-        if let Some((tile, (x, y))) = inner_wfc.step() {
-            // println!("set ({x}, {y}) - {tile:?}");
-            grid_cell_set_event_writer.send(GridCellSet {
-                tile,
-                pos: UVec2::from((x as u32, y as u32)),
-            });
-            wfc_step_event_writer.send(WfcStep);
+        if wfc_animate.0 {
+            if let Some((tile, (x, y))) = inner_wfc.step() {
+                // println!("set ({x}, {y}) - {tile:?}");
+                grid_cell_set_event_writer.send(GridCellSet {
+                    tile,
+                    pos: UVec2::from((x as u32, y as u32)),
+                });
+                wfc_step_event_writer.send(WfcStep);
+            } else {
+                consume_wfc = true;
+            }
         } else {
-            consume_wfc = true;
+            inner_wfc.perform_all_steps();
+            consume_wfc = true
         }
     } else {
         for entity in hex_query.iter() {
@@ -86,11 +92,15 @@ pub fn gen_map(
             compatibility_map,
         );
 
-        wfc.initialize_collapse();
-
-        local_state.wfc = Some(wfc);
-
-        wfc_step_event_writer.send(WfcStep);
+        if wfc_animate.0 {
+            wfc.initialize_collapse();
+            local_state.wfc = Some(wfc);
+            wfc_step_event_writer.send(WfcStep);
+        } else {
+            wfc.collapse();
+            local_state.wfc = Some(wfc);
+            consume_wfc = true;
+        }
     }
     if consume_wfc {
         regenerate_map_event_writer.send(MapGenerated(
@@ -121,6 +131,7 @@ pub fn input_handler(
     mut camera_query: Query<(&mut Transform, &mut OrthographicProjection), With<MainCamera>>,
     mut scroll_evr: EventReader<MouseWheel>,
     mut hex_text_enabled: ResMut<HexTextEnabled>,
+    mut wfc_animate: ResMut<WfcAnimate>,
     hex_scale: Res<HexScale>,
     hex_text_query: Query<Entity, With<HexText>>,
     time: Res<Time>,
@@ -138,6 +149,10 @@ pub fn input_handler(
             println!("changing hex mode to {new_hex_mode:?} for next generation");
             change_hex_mode_event_writer.send(ChangeHexMode(new_hex_mode));
         }
+    }
+    if keyboard_input.just_pressed(KeyY) {
+        wfc_animate.0 = !wfc_animate.0;
+        println!("changing wfc animate to {}", wfc_animate.0);
     }
     if keyboard_input.just_pressed(KeyT) {
         hex_text_enabled.0 = !hex_text_enabled.0;

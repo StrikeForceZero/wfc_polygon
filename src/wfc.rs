@@ -264,11 +264,15 @@ where
         self.propagate_constraints();
     }
 
+    pub fn perform_all_steps(&mut self) {
+        println!("collapsing");
+        while self.step().is_some() {}
+    }
+
     pub fn collapse(&mut self) -> bool {
         self.initialize_collapse();
 
-        println!("collapsing");
-        while self.step().is_some() {}
+        self.perform_all_steps();
 
         // Check if any cells are still None
         self.is_all_filled()

@@ -22,3 +22,6 @@ pub struct GridSize(pub UVec2);
 
 #[derive(Debug, Default, Resource)]
 pub struct HexTextEnabled(pub bool);
+
+#[derive(Debug, Default, Reflect, Resource)]
+pub struct WfcAnimate(pub bool);

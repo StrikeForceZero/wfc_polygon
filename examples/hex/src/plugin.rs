@@ -4,6 +4,7 @@ use crate::component::{HexData, HexInvalid, HexPos, HexPossibilities, HexText, I
 use crate::event::{ChangeHexMode, ClearCache, GridCellSet, MapGenerated, RegenerateMap, WfcStep};
 use crate::resource::{
     ColorMaterialMap, GenMapSystemId, GridSize, HexPossibilitiesCache, HexScale, HexTextEnabled,
+    WfcAnimate,
 };
 use crate::system;
 
@@ -18,6 +19,7 @@ impl Plugin for SubPlugin {
             .insert_resource(HexScale(20.0))
             .insert_resource(GridSize(UVec2::splat(40)))
             .insert_resource(HexTextEnabled(false))
+            .insert_resource(WfcAnimate(false))
             .register_type::<HexPos>()
             .register_type::<HexData>()
             .register_type::<HexPossibilities>()
@@ -25,6 +27,7 @@ impl Plugin for SubPlugin {
             .register_type::<HexInvalid>()
             .register_type::<HexText>()
             .register_type::<HexPossibilitiesCache>()
+            .register_type::<WfcAnimate>()
             .init_resource::<ColorMaterialMap>()
             .init_resource::<HexPossibilitiesCache>()
             .add_event::<RegenerateMap>()
