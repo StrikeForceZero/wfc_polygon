@@ -2,6 +2,7 @@ use std::io::{Read, Write};
 
 use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 use bevy::prelude::*;
+use bevy::prelude::KeyCode::KeyT;
 use bevy::sprite::{MaterialMesh2dBundle, Mesh2dHandle};
 use bevy::utils::HashSet;
 use bevy_inspector_egui::bevy_egui::EguiContexts;
@@ -104,13 +105,16 @@ pub fn wfc_step_handler(
 }
 
 pub fn input_handler(
+    mut commands: Commands,
     mouse_input: Res<ButtonInput<MouseButton>>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut regen_map_event_writer: EventWriter<RegenerateMap>,
     mut change_hex_mode_event_writer: EventWriter<ChangeHexMode>,
     mut camera_query: Query<(&mut Transform, &mut OrthographicProjection), With<MainCamera>>,
     mut scroll_evr: EventReader<MouseWheel>,
+    mut hex_text_enabled: ResMut<HexTextEnabled>,
     hex_scale: Res<HexScale>,
+    hex_text_query: Query<Entity, With<HexText>>,
     time: Res<Time>,
 ) {
     if keyboard_input.pressed(KeyCode::ControlLeft) {
@@ -125,6 +129,17 @@ pub fn input_handler(
             };
             println!("changing hex mode to {new_hex_mode:?} for next generation");
             change_hex_mode_event_writer.send(ChangeHexMode(new_hex_mode));
+        }
+    }
+    if keyboard_input.just_pressed(KeyT) {
+        hex_text_enabled.0 = !hex_text_enabled.0;
+        let visibility = if hex_text_enabled.0 {
+            Visibility::Inherited
+        } else {
+            Visibility::Hidden
+        };
+        for entity in hex_text_query.iter() {
+            commands.entity(entity).insert(visibility);
         }
     }
     for ev in scroll_evr.read() {
@@ -291,6 +306,7 @@ fn create_hex(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<ColorMaterial>>,
     color_material_map: &mut ResMut<ColorMaterialMap>,
+    hex_text_enabled: &Res<HexTextEnabled>,
 ) {
     let possibilities = create_hex_options.possibilities.clone();
     let scale = hex_scale.0;
@@ -303,6 +319,12 @@ fn create_hex(
     let translate_y = y as f32 * 1.732;
     let mut position = Vec3::new(translate_x, translate_y, 0.0) * scale
         - Vec2::new(16.0, 20.0).extend(0.0) * scale;
+
+    let visibility = if hex_text_enabled.0 {
+        Visibility::Inherited
+    } else {
+        Visibility::Hidden
+    };
 
     if x % 2 == 0 {
         position.y += 0.9 * scale;
@@ -349,6 +371,7 @@ fn create_hex(
                     },
                 ),
                 transform: Transform::from_translation(Vec2::default().extend(10.0)),
+                visibility,
                 ..default()
             });
         })
@@ -366,6 +389,7 @@ pub fn grid_cell_set_event_handler(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut color_material_map: ResMut<ColorMaterialMap>,
+    hex_text_enabled: Res<HexTextEnabled>,
 ) {
     for gcs in grid_cell_set.read() {
         create_hex(
@@ -381,6 +405,7 @@ pub fn grid_cell_set_event_handler(
             &mut meshes,
             &mut materials,
             &mut color_material_map,
+            &hex_text_enabled,
         );
     }
 }
@@ -393,6 +418,7 @@ pub fn map_generated_event_handler(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut color_material_map: ResMut<ColorMaterialMap>,
+    hex_text_enabled: Res<HexTextEnabled>,
 ) {
     if let Some(MapGenerated(wfc)) = events.read().last() {
         // despawn last map
@@ -434,6 +460,7 @@ pub fn map_generated_event_handler(
                 &mut meshes,
                 &mut materials,
                 &mut color_material_map,
+                &hex_text_enabled,
             );
         }
     }

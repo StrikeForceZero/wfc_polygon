@@ -19,3 +19,6 @@ pub struct ColorMaterialMap(pub HashMap<ColorWrapper, Handle<ColorMaterial>>);
 
 #[derive(Debug, Default, Resource)]
 pub struct GridSize(pub UVec2);
+
+#[derive(Debug, Default, Resource)]
+pub struct HexTextEnabled(pub bool);

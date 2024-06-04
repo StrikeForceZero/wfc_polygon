@@ -3,7 +3,6 @@ use std::sync::RwLock;
 
 use bevy::prelude::*;
 use bevy_inspector_egui::bevy_egui::EguiPlugin;
-use bevy_inspector_egui::quick::WorldInspectorPlugin;
 use bevy_mod_picking::prelude::*;
 
 use plugin::SubPlugin;
@@ -44,7 +43,7 @@ fn main() {
     App::new()
         .add_plugins(DefaultPlugins.set(low_latency_window_plugin()))
         .add_plugins(EguiPlugin)
-        .add_plugins(WorldInspectorPlugin::default())
+        // .add_plugins(WorldInspectorPlugin::default())
         .insert_resource(DebugPickingMode::Normal)
         .add_plugins(DefaultPickingPlugins)
         .add_plugins(SubPlugin)

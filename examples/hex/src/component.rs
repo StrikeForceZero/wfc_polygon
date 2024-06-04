@@ -22,3 +22,6 @@ pub struct InnerHex;
 
 #[derive(Debug, Default, Reflect, Component)]
 pub struct HexInvalid;
+
+#[derive(Debug, Default, Reflect, Component)]
+pub struct HexText;
