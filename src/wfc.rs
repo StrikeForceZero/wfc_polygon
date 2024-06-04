@@ -110,8 +110,7 @@ where
                         } else {
                             self.possibilities[neighbor_index]
                                 .difference(&self.invalid_possibilities[neighbor_index])
-                                .collect::<Vec<_>>()
-                                .len()
+                                .count()
                         };
                         let possibilities = &mut self.possibilities[neighbor_index];
                         possibilities.retain(|t| {
@@ -136,8 +135,7 @@ where
         } else {
             self.possibilities[index]
                 .difference(&self.invalid_possibilities[index])
-                .collect::<Vec<_>>()
-                .len()
+                .count()
         };
         self.entropy_queue.push(Reverse((entropy, x, y)));
     }
