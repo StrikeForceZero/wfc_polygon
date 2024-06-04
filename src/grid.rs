@@ -178,21 +178,33 @@ where
         }
     }
 
-    pub fn set(&mut self, x: usize, y: usize, tile: T) {
+    pub fn set(&mut self, x: usize, y: usize, tile: T) -> Option<T> {
         if x < self.width && y < self.height {
             let index = self.xy_to_index(x, y);
-            if self.cells[index].replace(tile).is_none() {
-                self.set_count += 1;
+            match self.cells[index].replace(tile) {
+                some @ Some(_) => some,
+                _ => {
+                    self.set_count += 1;
+                    None
+                }
             }
+        } else {
+            None
         }
     }
 
-    pub fn unset(&mut self, x: usize, y: usize) {
+    pub fn unset(&mut self, x: usize, y: usize) -> Option<T> {
         if x < self.width && y < self.height {
             let index = self.xy_to_index(x, y);
-            if self.cells[index].take().is_some() {
-                self.set_count -= 1;
+            match self.cells[index].take() {
+                some @ Some(_) => {
+                    self.set_count -= 1;
+                    some
+                }
+                _ => None,
             }
+        } else {
+            None
         }
     }
 
