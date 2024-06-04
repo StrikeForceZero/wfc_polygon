@@ -35,7 +35,7 @@ impl std::fmt::Display for HexMode {
 }
 
 // TODO: this is silly but due to the current way its being read in `HexTileId` it needs to remain global
-static HEX_MODE: RwLock<HexMode> = RwLock::new(HexMode::Segments);
+static HEX_MODE: RwLock<HexMode> = RwLock::new(HexMode::Full);
 const DEBUG_COMPATIBILITY_MAP: bool = false;
 
 //noinspection RsConstantConditionIf

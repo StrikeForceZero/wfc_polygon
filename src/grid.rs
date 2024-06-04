@@ -162,6 +162,10 @@ where
         &self.cells
     }
 
+    pub fn is_filled(&self) -> bool {
+        self.set_count == self.width * self.height
+    }
+
     pub fn percentage_filled(&self) -> f32 {
         self.set_count as f32 / (self.width * self.height) as f32
     }

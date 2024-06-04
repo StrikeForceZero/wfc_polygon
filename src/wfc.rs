@@ -148,10 +148,6 @@ where
             Backtrack,
         }
         if let Some(Reverse((_, x, y))) = self.entropy_queue.pop() {
-            let percent = self.grid.percentage_filled() * 100.0;
-            if percent % 10.0 == 0.0 && percent != 100.0 {
-                println!("{percent}% filled");
-            }
             let index = self.grid.xy_to_index(x, y);
             let state = if self.possibilities[index].is_empty() {
                 State::Backtrack
@@ -165,8 +161,10 @@ where
                     State::SetAny(choices)
                 }
             };
-            match state {
+            let mut was_set = false;
+            let res = match state {
                 State::SetAny(choices) => {
+                    was_set = true;
                     let mut rng = thread_rng();
                     let Some(&tile) = choices
                         .into_iter()
@@ -183,7 +181,7 @@ where
 
                     self.propagation_queue.push_back((x, y));
                     self.propagate_constraints();
-                    Some((Some(tile), (x, y)))
+                    (Some(tile), (x, y))
                 }
                 State::Backtrack => {
                     println!("backtracking");
@@ -199,9 +197,14 @@ where
                     self.invalid_possibilities[index].insert(last_set_tile);
                     self.propagation_queue.push_front((last_x, last_y));
                     self.propagate_constraints();
-                    Some((None, (x, y)))
+                    (None, (x, y))
                 }
+            };
+            if self.grid.is_filled() && was_set {
+                self.propagation_queue.clear();
+                self.entropy_queue.clear();
             }
+            Some(res)
         } else {
             None
         }
