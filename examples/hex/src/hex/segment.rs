@@ -22,7 +22,8 @@ pub enum HexSegmentId {
     Mountain,
     MountainPeak,
     River,
-    Creek,
+    // TODO: too many permutations
+    // Creek,
     Ocean,
     Sand,
 }
@@ -34,7 +35,7 @@ impl HexSegmentId {
             Self::Mountain,
             Self::MountainPeak,
             Self::River,
-            Self::Creek,
+            // Self::Creek,
             Self::Ocean,
             Self::Sand,
         ]
@@ -47,33 +48,37 @@ impl HexSegmentId {
                 Self::Sand,
                 Self::Mountain,
                 Self::River,
-                Self::Creek,
+                //Self::Creek,
             ],
-            Self::Mountain => vec![Self::Mountain, Self::MountainPeak, Self::Grass, Self::Creek],
-            Self::MountainPeak => vec![Self::Mountain, Self::Creek],
+            Self::Mountain => vec![
+                Self::Mountain,
+                Self::MountainPeak,
+                Self::Grass, /*Self::Creek*/
+            ],
+            Self::MountainPeak => vec![Self::Mountain /*Self::Creek*/],
             Self::River => vec![
                 Self::River,
                 Self::Ocean,
-                Self::Creek,
+                //Self::Creek,
                 Self::Grass,
                 Self::Sand,
             ],
-            Self::Creek => vec![
-                Self::Creek,
-                Self::River,
-                Self::Ocean,
-                Self::MountainPeak,
-                Self::Grass,
-                Self::Mountain,
-                Self::Sand,
-            ],
-            Self::Ocean => vec![Self::Ocean, Self::River, Self::Sand, Self::Creek],
+            // Self::Creek => vec![
+            //     Self::Creek,
+            //     Self::River,
+            //     Self::Ocean,
+            //     Self::MountainPeak,
+            //     Self::Grass,
+            //     Self::Mountain,
+            //     Self::Sand,
+            // ],
+            Self::Ocean => vec![Self::Ocean, Self::River, Self::Sand /*Self::Creek*/],
             Self::Sand => vec![
                 Self::Sand,
                 Self::Ocean,
                 Self::Grass,
                 Self::River,
-                Self::Creek,
+                // Self::Creek,
             ],
         }
     }
@@ -84,7 +89,7 @@ impl HexSegmentId {
             HexSegmentId::Mountain => Color::GRAY,
             HexSegmentId::MountainPeak => Color::WHITE,
             HexSegmentId::River => Color::BLUE,
-            HexSegmentId::Creek => Color::CYAN,
+            // HexSegmentId::Creek => Color::CYAN,
             HexSegmentId::Ocean => Color::MIDNIGHT_BLUE,
             HexSegmentId::Sand => Color::rgb(0.82, 0.70, 0.55), // Tan
         }

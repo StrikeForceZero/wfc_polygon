@@ -68,11 +68,46 @@ impl FlatTopHexagonalSegmentIdMap {
             FlatTopHexSide::TopLeft => [FlatTopHexSide::BottomLeft, FlatTopHexSide::Top],
         }
     }
-    pub fn has_valid_segments(&self) -> bool {
+    pub fn has_valid_adjacent_segments(&self) -> bool {
         for side in FLAT_HEX_SIDES {
             let compatible = self.get_side(side).compatible();
             for adjacent in self.adjacent_segments(side) {
                 if !compatible.contains(&self.get_side(adjacent)) {
+                    return false;
+                }
+            }
+        }
+        true
+    }
+    pub fn has_valid_segments(&self) -> bool {
+        for side in FLAT_HEX_SIDES {
+            let seg = self.get_side(side);
+            match seg {
+                HexSegmentId::None => {}
+                HexSegmentId::Grass => {}
+                HexSegmentId::Mountain => {}
+                HexSegmentId::Ocean | HexSegmentId::MountainPeak => {
+                    for other_side in FLAT_HEX_SIDES {
+                        if self.get_side(other_side) != seg {
+                            return false;
+                        }
+                    }
+                }
+                HexSegmentId::River => {
+                    if FLAT_HEX_SIDES
+                        .into_iter()
+                        .filter(|&side| self.get_side(side) == seg)
+                        .count()
+                        > 2
+                    {
+                        return false;
+                    }
+                }
+                HexSegmentId::Sand => {}
+            }
+            let compatible = self.get_side(side).compatible();
+            for other_side in FLAT_HEX_SIDES {
+                if !compatible.contains(&self.get_side(other_side)) {
                     return false;
                 }
             }

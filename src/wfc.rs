@@ -61,12 +61,13 @@ where
     T: Tile<T>,
 {
     grid: Grid<GT, T>,
+    set_history: Vec<usize>,
+    invalid_possibilities: Vec<HashSet<T>>,
     possibilities: Vec<HashSet<T>>,
     #[serde(skip_serializing, skip_deserializing)]
     compatibility: Option<CompatibilityMap<GT, T>>,
     propagation_queue: VecDeque<(usize, usize)>,
     entropy_queue: BinaryHeap<Reverse<(usize, usize, usize)>>,
-    last_set_index: Option<usize>,
     #[serde(skip_serializing, skip_deserializing)]
     state_history: Option<StateHistory>,
 }
@@ -103,11 +104,12 @@ where
 
         Self {
             grid,
+            set_history: Vec::new(),
+            invalid_possibilities: possibilities.iter().map(|_| HashSet::new()).collect(),
             possibilities,
             compatibility: Some(compatibility),
             propagation_queue,
             entropy_queue,
-            last_set_index: None,
             state_history: Some(StateHistory::new()),
         }
     }
@@ -137,9 +139,19 @@ where
                         .expect("expected compatibility map")
                         .get(tile, side)
                     {
+                        let old_len = if self.invalid_possibilities[neighbor_index].is_empty() {
+                            self.possibilities[neighbor_index].len()
+                        } else {
+                            self.possibilities[neighbor_index]
+                                .difference(&self.invalid_possibilities[neighbor_index])
+                                .collect::<Vec<_>>()
+                                .len()
+                        };
                         let possibilities = &mut self.possibilities[neighbor_index];
-                        let old_len = possibilities.len();
-                        possibilities.retain(|t| allowed_tiles.contains(t));
+                        possibilities.retain(|t| {
+                            allowed_tiles.contains(t)
+                                && !self.invalid_possibilities[neighbor_index].contains(t)
+                        });
                         if possibilities.len() < old_len {
                             let (nx, ny) = self.grid.index_to_xy(neighbor_index);
                             self.propagation_queue.push_back((nx, ny));
@@ -153,7 +165,14 @@ where
 
     fn update_entropy(&mut self, x: usize, y: usize) {
         let index = self.grid.xy_to_index(x, y);
-        let entropy = self.possibilities[index].len();
+        let entropy = if self.invalid_possibilities[index].is_empty() {
+            self.possibilities[index].len()
+        } else {
+            self.possibilities[index]
+                .difference(&self.invalid_possibilities[index])
+                .collect::<Vec<_>>()
+                .len()
+        };
         self.entropy_queue.push(Reverse((entropy, x, y)));
     }
 
@@ -189,7 +208,8 @@ where
             return Err(WaveFunctionCollapseError::StateStackExhausted);
         };
         let last_set_index = self
-            .last_set_index
+            .set_history
+            .pop()
             .unwrap_or_else(|| unreachable!("backtrack called before collapse"));
         let last_set_tile =
             self.grid.cells()[last_set_index].expect("expected tile at least set index");
@@ -212,11 +232,7 @@ where
     pub fn collapse(&mut self) -> Result<bool, WaveFunctionCollapseError<GT, T>> {
         let mut rng = thread_rng();
 
-        self.compatibility
-            .as_ref()
-            .expect("expected compatibility map")
-            .check_contradictions()?;
-
+        println!("checking external or previous collapse changes");
         // Re-load possibilities each iteration to account for external changes
         for (ix, cell) in self.grid.cells().iter().enumerate() {
             let Some(&tile) = cell.as_ref() else {
@@ -241,6 +257,7 @@ where
             }
         }
 
+        println!("initializing queues");
         // Initialize possibilities
         self.entropy_queue.clear();
         self.propagation_queue.clear();
@@ -256,25 +273,46 @@ where
             }
         }
 
+        println!("propagating");
         // Propagate constraints for initially determined tiles
         self.propagate_constraints();
 
+        enum State<T> {
+            SetAny(Vec<T>),
+            Backtrack,
+        }
+
+        println!("collapsing");
         while let Some(Reverse((_, x, y))) = self.entropy_queue.pop() {
+            let percent = self.grid.percentage_filled() * 100.0;
+            if percent % 10.0 == 0.0 && percent != 100.0 {
+                println!("{percent}% filled");
+            }
             let index = self.grid.xy_to_index(x, y);
-            if self.possibilities[index].len() > 1
-                || self.possibilities[index].len() == 1 && self.grid.get_by_index(index).is_none()
-            {
-                if self.possibilities[index].len() == 1 && self.grid.get_by_index(index).is_none() {
-                    println!("force filling: ({x},{y})")
+            let state = if self.possibilities[index].is_empty() {
+                State::Backtrack
+            } else {
+                let choices = self.possibilities[index]
+                    .difference(&self.invalid_possibilities[index])
+                    .collect::<Vec<_>>();
+                if choices.is_empty() {
+                    State::Backtrack
+                } else {
+                    State::SetAny(choices)
                 }
-                if let Some(&tile) = self.possibilities[index]
-                    .iter()
-                    .cloned()
-                    .collect::<Vec<_>>()
-                    .choose(&mut rng)
-                {
-                    self.last_set_index = Some(index);
+            };
+            match state {
+                State::SetAny(choices) => {
+                    let Some(&tile) = choices
+                        .into_iter()
+                        .collect::<Vec<_>>()
+                        .choose(&mut rng)
+                        .cloned()
+                    else {
+                        unreachable!()
+                    };
                     self.grid.set(x, y, tile);
+                    self.set_history.push(index);
                     // set the possibilities to the tile we just set it as
                     self.possibilities[index] = HashSet::from([tile]);
 
@@ -282,16 +320,30 @@ where
                     self.propagate_constraints();
 
                     // Update entropy for neighbors
-                    for (_, neighbor_index_opt) in self.grid.neighbor_indexes(x, y) {
-                        if let Some(neighbor_index) = neighbor_index_opt {
-                            let (nx, ny) = self.grid.index_to_xy(neighbor_index);
-                            self.update_entropy(nx, ny);
-                        }
-                    }
-                    self.save_state()?;
+                    // for (_, neighbor_index_opt) in self.grid.neighbor_indexes(x, y) {
+                    //     if let Some(neighbor_index) = neighbor_index_opt {
+                    //         let (nx, ny) = self.grid.index_to_xy(neighbor_index);
+                    //         self.update_entropy(nx, ny);
+                    //     }
+                    // }
+                    //self.save_state()?;
                 }
-            } else if self.possibilities[index].is_empty() {
-                self.backtrack()?;
+                State::Backtrack => {
+                    println!("backtracking");
+                    //self.backtrack()?;
+                    let Some(last_index) = self.set_history.pop() else {
+                        panic!("impossible to finish")
+                    };
+                    let Some(last_set_tile) = self.grid.get_by_index(last_index) else {
+                        panic!("bad state");
+                    };
+                    let (last_x, last_y) = self.grid.index_to_xy(last_index);
+                    self.grid.unset(last_x, last_y);
+                    self.invalid_possibilities[index].insert(last_set_tile);
+                    self.propagation_queue.push_front((last_x, last_y));
+                    // self.propagation_queue.push_back((x, y));
+                    self.propagate_constraints();
+                }
             }
         }
 

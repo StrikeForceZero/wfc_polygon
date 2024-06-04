@@ -114,7 +114,14 @@ impl HexTileId {
     pub fn get_compatibility_map() -> CompatibilityMap<FlatTopHexGrid, Self> {
         let mut map = CompatibilityMap::new();
         let permutations = Self::permutations();
-        for &combination in permutations.iter() {
+        println!("permutations: {}", permutations.len());
+        for (index, &combination) in permutations.iter().enumerate() {
+            println!(
+                "{}/{} ({:.2}%)",
+                index,
+                permutations.len(),
+                index as f32 / permutations.len() as f32 * 100.0
+            );
             for (side, pattern) in Self::valid_sets_pattern(combination) {
                 let valid_tiles = permutations
                     .iter()

@@ -1,3 +1,5 @@
+use std::io::{Read, Write};
+
 use bevy::prelude::*;
 use bevy::sprite::{MaterialMesh2dBundle, Mesh2dHandle};
 use bevy::utils::{HashMap, HashSet};
@@ -22,23 +24,32 @@ pub fn setup(
     hex_scale: Res<HexScale>,
     mut event_writer: EventWriter<RegenerateMap>,
 ) {
-    commands.spawn(Camera2dBundle {
-        projection: OrthographicProjection {
-            far: 1000.,
-            near: -1000.,
-            scale: 0.05 * hex_scale.0,
+    commands.spawn((
+        MainCamera,
+        Camera2dBundle {
+            projection: OrthographicProjection {
+                far: 1000.,
+                near: -1000.,
+                scale: 0.05 * hex_scale.0,
+                ..default()
+            },
             ..default()
         },
-        ..default()
-    });
+    ));
     event_writer.send(RegenerateMap);
 }
 
 pub fn gen_map(mut event_writer: EventWriter<MapGenerated>) {
     println!("generating map");
+    let compatibility_map = HexTileId::get_compatibility_map();
+    println!(
+        "compatibility_map size: {:.4}Mb",
+        compatibility_map.estimated_size() / 1024 / 1024
+    );
+    println!("initializing wfc");
     let mut wfc = WaveFunctionCollapse::new_with_compatibility(
-        FlatTopHexGrid::new(25, 25),
-        HexTileId::get_compatibility_map(),
+        FlatTopHexGrid::new(100, 100),
+        compatibility_map,
     );
 
     let max_retries = 100;
@@ -57,6 +68,8 @@ pub fn input_handler(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut regen_map_event_writer: EventWriter<RegenerateMap>,
     mut change_hex_mode_event_writer: EventWriter<ChangeHexMode>,
+    mut camera_query: Query<&mut Transform, With<MainCamera>>,
+    time: Res<Time>,
 ) {
     if keyboard_input.pressed(KeyCode::ControlLeft) {
         if mouse_input.just_pressed(MouseButton::Left) {
@@ -70,6 +83,25 @@ pub fn input_handler(
             };
             println!("changing hex mode to {new_hex_mode:?} for next generation");
             change_hex_mode_event_writer.send(ChangeHexMode(new_hex_mode));
+        }
+    }
+    let speed = 50.0;
+    for mut camera_transform in camera_query.iter_mut() {
+        if keyboard_input.pressed(KeyCode::KeyW) {
+            camera_transform.translation +=
+                Vec2::new(0.0, 1.0).extend(0.0) * speed * time.delta_seconds();
+        }
+        if keyboard_input.pressed(KeyCode::KeyS) {
+            camera_transform.translation +=
+                Vec2::new(0.0, -1.0).extend(0.0) * speed * time.delta_seconds();
+        }
+        if keyboard_input.pressed(KeyCode::KeyD) {
+            camera_transform.translation +=
+                Vec2::new(1.0, 0.0).extend(0.0) * speed * time.delta_seconds();
+        }
+        if keyboard_input.pressed(KeyCode::KeyA) {
+            camera_transform.translation +=
+                Vec2::new(-1.0, 0.0).extend(0.0) * speed * time.delta_seconds();
         }
     }
 }

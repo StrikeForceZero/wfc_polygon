@@ -1,7 +1,7 @@
 use std::collections::{BTreeMap, HashSet};
 use std::fmt::Debug;
-use serde::{Deserialize, Serialize};
 
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 use crate::{HexagonType, Polygon, Side, Tile};
@@ -85,6 +85,19 @@ where
             ),
         }
     }
+    pub fn estimated_size(&self) -> usize {
+        std::mem::size_of_val(&self.polygon)
+            + self
+                .compatibility
+                .iter()
+                .map(|((k1, k2, k3), v)| {
+                    std::mem::size_of_val(k1)
+                        + std::mem::size_of_val(k2)
+                        + std::mem::size_of_val(k3)
+                        + v.iter().map(|v| std::mem::size_of_val(v)).sum::<usize>()
+                })
+                .sum::<usize>()
+    }
     pub fn add(&mut self, tile: T, side: GT::SideType, compatible_tiles: Vec<T>) {
         self.compatibility
             .insert(self.key(tile, side), compatible_tiles.into_iter().collect());
@@ -122,6 +135,7 @@ where
 #[cfg(test)]
 mod tests {
     use serde::{Deserialize, Serialize};
+
     use crate::{SquareSide, Tile, TileInstance};
     use crate::grid::SquareGrid;
 

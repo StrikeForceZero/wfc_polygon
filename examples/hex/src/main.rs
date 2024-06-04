@@ -1,3 +1,4 @@
+use std::fmt::Formatter;
 use std::sync::RwLock;
 
 use bevy::prelude::*;
@@ -24,8 +25,18 @@ enum HexMode {
     Segments,
 }
 
+impl std::fmt::Display for HexMode {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        let str = match self {
+            HexMode::Full => "full",
+            HexMode::Segments => "segments",
+        };
+        write!(f, "{str}")
+    }
+}
+
 // TODO: this is silly but due to the current way its being read in `HexTileId` it needs to remain global
-static HEX_MODE: RwLock<HexMode> = RwLock::new(HexMode::Full);
+static HEX_MODE: RwLock<HexMode> = RwLock::new(HexMode::Segments);
 const DEBUG_COMPATIBILITY_MAP: bool = false;
 
 //noinspection RsConstantConditionIf

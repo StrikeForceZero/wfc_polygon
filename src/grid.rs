@@ -128,6 +128,7 @@ where
     width: usize,
     height: usize,
     cells: Vec<Option<T>>,
+    set_count: usize,
 }
 
 impl<GT, T> Grid<GT, T>
@@ -142,6 +143,7 @@ where
             width,
             height,
             cells: vec![None; width * height],
+            set_count: 0,
         }
     }
     pub fn polygon(&self) -> GT::Type {
@@ -160,6 +162,10 @@ where
         &self.cells
     }
 
+    pub fn percentage_filled(&self) -> f32 {
+        self.set_count as f32 / (self.width * self.height) as f32
+    }
+
     pub fn get(&self, x: usize, y: usize) -> Option<T> {
         if x < self.width && y < self.height {
             self.cells[self.xy_to_index(x, y)]
@@ -171,14 +177,18 @@ where
     pub fn set(&mut self, x: usize, y: usize, tile: T) {
         if x < self.width && y < self.height {
             let index = self.xy_to_index(x, y);
-            self.cells[index] = Some(tile);
+            if self.cells[index].replace(tile).is_none() {
+                self.set_count += 1;
+            }
         }
     }
 
     pub fn unset(&mut self, x: usize, y: usize) {
         if x < self.width && y < self.height {
             let index = self.xy_to_index(x, y);
-            self.cells[index] = None;
+            if self.cells[index].take().is_some() {
+                self.set_count -= 1;
+            }
         }
     }
 

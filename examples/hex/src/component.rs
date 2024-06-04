@@ -6,6 +6,9 @@ use crate::hex::map::FlatTopHexagonalSegmentIdMap;
 use crate::hex::tile_id::HexTileId;
 
 #[derive(Debug, Copy, Clone, Reflect, Component, PartialEq, Eq, Hash)]
+pub struct MainCamera;
+
+#[derive(Debug, Copy, Clone, Reflect, Component, PartialEq, Eq, Hash)]
 pub struct HexPos(pub UVec2);
 
 #[derive(Debug, Clone, Reflect, Component)]
