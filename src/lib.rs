@@ -277,4 +277,7 @@ pub trait Tile<T: TileInstance>: TileInstance {
     fn probability() -> HashMap<T, f64> {
         Self::all().into_iter().map(|t| (t, 1.0)).collect()
     }
+    fn distribution() -> Option<HashMap<T, f64>> {
+        None
+    }
 }

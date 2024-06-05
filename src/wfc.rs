@@ -1,5 +1,5 @@
 use std::cmp::Reverse;
-use std::collections::{BinaryHeap, HashSet, VecDeque};
+use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
 use std::fmt::Debug;
 
 use rand::prelude::*;
@@ -171,11 +171,68 @@ where
                         (None, (x, y))
                     } else {
                         let mut rng = thread_rng();
+
+                        // > 0.0 is used to make sure if that's the only available tile it's still allowed to be selected
+                        const MIN_WEIGHT: f64 = 0.001;
+                        let total_cells = self.grid.size();
+                        let total_set_cells = self.grid.set_count();
+                        let expected_distributions = if let Some(distributions) = T::distribution()
+                        {
+                            let sum = distributions.values().sum::<f64>();
+                            Some(
+                                distributions
+                                    .into_iter()
+                                    .map(|(k, v)| (k, v / sum))
+                                    .collect::<HashMap<_, _>>(),
+                            )
+                        } else {
+                            None
+                        };
+
                         let Ok(&tile) = choices
                             .into_iter()
                             .collect::<Vec<_>>()
                             .choose_weighted(&mut rng, |&t| {
-                                T::probability().get(t).cloned().unwrap_or(0.0)
+                                if let Some(expected_distributions) = &expected_distributions {
+                                    let target_distribution_map = self
+                                        .grid
+                                        .set_count_map()
+                                        .iter()
+                                        .map(|(k, &current_count)| {
+                                            let current_count = current_count as f64;
+                                            let expected_distribution = *expected_distributions
+                                                .get(k)
+                                                .unwrap_or_else(|| unreachable!());
+
+                                            let total = if total_set_cells == 0 {
+                                                // to prevent using 0 on the first iteration we use the total cells
+                                                total_cells
+                                            } else {
+                                                // otherwise we use the total set so the distribution can be adaptive
+                                                total_set_cells
+                                            };
+
+                                            let expected_count =
+                                                total as f64 * expected_distribution;
+                                            let weight = if expected_count == 0.0 {
+                                                // prevent divide by zero
+                                                MIN_WEIGHT
+                                            } else {
+                                                // 0.0 - 1.0
+                                                let current_ratio = current_count / expected_count;
+                                                // subtract 1.0 to identify the distribution deficit for 0.0 - 1.0.
+                                                // Higher deficit = higher weight.
+                                                let deficit = 1.0 - current_ratio;
+                                                // Ensure weight is not negative
+                                                deficit.max(MIN_WEIGHT)
+                                            };
+                                            (k, weight)
+                                        })
+                                        .collect::<HashMap<_, _>>();
+                                    target_distribution_map.get(t).cloned().unwrap_or_default()
+                                } else {
+                                    T::probability().get(t).cloned().unwrap_or_default()
+                                }
                             })
                             .cloned()
                         else {

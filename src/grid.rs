@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 
 use serde::{Deserialize, Serialize};
@@ -129,6 +130,7 @@ where
     height: usize,
     cells: Vec<Option<T>>,
     set_count: usize,
+    set_count_map: HashMap<T, usize>,
 }
 
 impl<GT, T> Grid<GT, T>
@@ -144,6 +146,7 @@ where
             height,
             cells: vec![None; width * height],
             set_count: 0,
+            set_count_map: T::all().iter().map(|&t| (t, 0)).collect(),
         }
     }
     pub fn polygon(&self) -> GT::Type {
@@ -158,6 +161,10 @@ where
         self.height
     }
 
+    pub fn size(&self) -> usize {
+        self.width * self.height
+    }
+
     pub fn cells(&self) -> &[Option<T>] {
         &self.cells
     }
@@ -168,6 +175,14 @@ where
 
     pub fn percentage_filled(&self) -> f32 {
         self.set_count as f32 / (self.width * self.height) as f32
+    }
+
+    pub fn set_count(&self) -> usize {
+        self.set_count
+    }
+
+    pub fn set_count_map(&self) -> &HashMap<T, usize> {
+        &self.set_count_map
     }
 
     pub fn get(&self, x: usize, y: usize) -> Option<T> {
@@ -184,6 +199,7 @@ where
             match self.cells[index].replace(tile) {
                 some @ Some(_) => some,
                 _ => {
+                    *self.set_count_map.entry(tile).or_default() += 1;
                     self.set_count += 1;
                     None
                 }
@@ -197,7 +213,12 @@ where
         if x < self.width && y < self.height {
             let index = self.xy_to_index(x, y);
             match self.cells[index].take() {
-                some @ Some(_) => {
+                some @ Some(tile) => {
+                    self.set_count_map
+                        .entry(tile)
+                        .or_default()
+                        .checked_sub(1)
+                        .unwrap_or_else(|| unreachable!());
                     self.set_count -= 1;
                     some
                 }

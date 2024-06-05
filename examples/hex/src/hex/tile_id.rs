@@ -38,6 +38,14 @@ impl HexTileId {
             .sum::<f64>()
             / 6.0
     }
+    fn distribution(&self) -> f64 {
+        let tuple = self.0;
+        [tuple.0, tuple.1, tuple.2, tuple.3, tuple.4, tuple.5]
+            .map(|t| t.distribution())
+            .iter()
+            .sum::<f64>()
+            / 6.0
+    }
 }
 
 impl TileInstance for HexTileId {}
@@ -51,6 +59,14 @@ impl Tile<Self> for HexTileId {
             .into_iter()
             .map(|t| (t, t.probability()))
             .collect()
+    }
+    fn distribution() -> Option<HashMap<Self, f64>> {
+        Some(
+            Self::all()
+                .into_iter()
+                .map(|t| (t, t.distribution()))
+                .collect(),
+        )
     }
 }
 

@@ -90,6 +90,17 @@ impl HexSegmentId {
             HexSegmentId::Sand => 0.35,
         }
     }
+    pub fn distribution(&self) -> f64 {
+        match self {
+            HexSegmentId::None => 0.0,
+            HexSegmentId::Grass => 0.8,
+            HexSegmentId::Mountain => 0.25,
+            HexSegmentId::MountainPeak => 0.1,
+            HexSegmentId::River => 0.3,
+            HexSegmentId::Ocean => 0.7,
+            HexSegmentId::Sand => 0.35,
+        }
+    }
     pub fn as_color(&self) -> Color {
         match self {
             Self::None => Color::BLACK,
