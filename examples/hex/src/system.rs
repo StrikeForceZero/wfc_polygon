@@ -2,13 +2,16 @@ use std::io::{Read, Write};
 
 use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 use bevy::prelude::*;
-use bevy::prelude::KeyCode::{KeyM, KeyT, KeyY};
+use bevy::prelude::KeyCode::{KeyM, KeyR, KeyT, KeyY};
 use bevy::sprite::{MaterialMesh2dBundle, Mesh2dHandle};
 use bevy::utils::HashSet;
 use bevy_inspector_egui::bevy_egui::EguiContexts;
 use bevy_inspector_egui::egui;
 use bevy_mod_picking::highlight::InitialHighlight;
 use bevy_mod_picking::prelude::*;
+use rand::{Rng, SeedableRng, thread_rng};
+use rand::prelude::StdRng;
+use rand::rngs::mock::StepRng;
 
 use wfc_polygon::grid::{FlatTopHexGrid, GridType};
 use wfc_polygon::wfc::{WaveFunctionCollapse, WrapMode};
@@ -53,14 +56,16 @@ pub fn gen_map(
     mut regenerate_map_event_writer: EventWriter<MapGenerated>,
     mut wfc_step_event_writer: EventWriter<WfcStep>,
     mut grid_cell_set_event_writer: EventWriter<GridCellSet>,
+    mut seed: ResMut<Seed>,
     wrap_mode: Res<WfcWrapMode>,
     wfc_animate: Res<WfcAnimate>,
     grid_size: Res<GridSize>,
 ) {
+    let mut rng = StdRng::from_rng(StepRng::new(seed.0, 1)).expect("failed to create rng");
     let mut consume_wfc = false;
     if let Some(inner_wfc) = local_state.wfc.as_mut() {
         if wfc_animate.0 {
-            if let Some((tile, (x, y))) = inner_wfc.step() {
+            if let Some((tile, (x, y))) = inner_wfc.step_with_custom_rng(&mut rng) {
                 // println!("set ({x}, {y}) - {tile:?}");
                 grid_cell_set_event_writer.send(GridCellSet {
                     tile,
@@ -71,7 +76,7 @@ pub fn gen_map(
                 consume_wfc = true;
             }
         } else {
-            inner_wfc.perform_all_steps();
+            inner_wfc.perform_all_steps_with_custom_rng(&mut rng);
             consume_wfc = true
         }
     } else {
@@ -100,7 +105,7 @@ pub fn gen_map(
             local_state.wfc = Some(wfc);
             wfc_step_event_writer.send(WfcStep);
         } else {
-            wfc.collapse();
+            wfc.collapse_with_custom_rng(&mut rng);
             local_state.wfc = Some(wfc);
             consume_wfc = true;
         }
@@ -136,6 +141,7 @@ pub fn input_handler(
     mut hex_text_enabled: ResMut<HexTextEnabled>,
     mut wfc_animate: ResMut<WfcAnimate>,
     mut wfc_wrap_mode: ResMut<WfcWrapMode>,
+    mut seed: ResMut<Seed>,
     hex_scale: Res<HexScale>,
     hex_text_query: Query<Entity, With<HexText>>,
     time: Res<Time>,
@@ -168,6 +174,12 @@ pub fn input_handler(
         for entity in hex_text_query.iter() {
             commands.entity(entity).insert(visibility);
         }
+    }
+    if keyboard_input.just_pressed(KeyR) {
+        seed.0 = thread_rng().gen_range(0..1_000_000_000);
+        println!("seed: {}", seed.0);
+        println!("sending regen map event");
+        regen_map_event_writer.send(RegenerateMap);
     }
     if keyboard_input.just_pressed(KeyM) {
         wfc_wrap_mode.0 = match wfc_wrap_mode.0 {
@@ -310,9 +322,11 @@ pub fn regen_map_event_handler(
     mut commands: Commands,
     gen_map_system_id: Res<GenMapSystemId>,
     mut events: EventReader<RegenerateMap>,
+    seed: Res<Seed>,
 ) {
     if events.read().next().is_some() {
         events.clear();
+        println!("seed: {}", seed.0);
         commands.run_system(gen_map_system_id.0);
     }
 }

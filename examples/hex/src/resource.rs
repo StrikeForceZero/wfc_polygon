@@ -30,3 +30,6 @@ pub struct WfcAnimate(pub bool);
 
 #[derive(Debug, Default, Resource)]
 pub struct WfcWrapMode(pub Option<WrapMode>);
+
+#[derive(Debug, Default, Resource)]
+pub struct Seed(pub u64);

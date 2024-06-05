@@ -10,3 +10,4 @@ bevy-inspector-egui = "0.24.0"
 bevy_mod_picking = "0.18.2"
 itertools = "0.13.0"
 serde = { version = "1.0.203", features = ["derive"] }
+rand = "0.8.5"
