@@ -95,7 +95,7 @@ impl HexSegmentId {
             HexSegmentId::None => 0.0,
             HexSegmentId::Grass => 0.8,
             HexSegmentId::Mountain => 0.25,
-            HexSegmentId::MountainPeak => 0.1,
+            HexSegmentId::MountainPeak => 0.01,
             HexSegmentId::River => 0.3,
             HexSegmentId::Ocean => 0.7,
             HexSegmentId::Sand => 0.35,
