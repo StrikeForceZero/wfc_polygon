@@ -228,7 +228,7 @@ where
         self.entropy_queue.push(Reverse((entropy, x, y)));
     }
 
-    pub fn step(&mut self) -> Option<(Option<T>, (usize, usize))> {
+    fn _step(&mut self, rng: &mut impl Rng) -> Option<(Option<T>, (usize, usize))> {
         enum State<T> {
             SetAny(Vec<T>),
             Backtrack,
@@ -258,8 +258,6 @@ where
                         skip = true;
                         (None, (x, y))
                     } else {
-                        let mut rng = thread_rng();
-
                         // > 0.0 is used to make sure if that's the only available tile it's still allowed to be selected
                         const MIN_WEIGHT: f64 = 0.001;
                         let total_cells = self.grid.size();
@@ -280,7 +278,7 @@ where
                         let Ok(&tile) = choices
                             .into_iter()
                             .collect::<Vec<_>>()
-                            .choose_weighted(&mut rng, |&t| {
+                            .choose_weighted(rng, |&t| {
                                 if let Some(expected_distributions) = &expected_distributions {
                                     let target_distribution_map = self
                                         .grid
@@ -367,6 +365,17 @@ where
         None
     }
 
+    pub fn step(&mut self) -> Option<(Option<T>, (usize, usize))> {
+        self._step(&mut thread_rng())
+    }
+
+    pub fn step_with_custom_rng(
+        &mut self,
+        rng: &mut impl Rng,
+    ) -> Option<(Option<T>, (usize, usize))> {
+        self._step(rng)
+    }
+
     pub fn initialize_collapse(&mut self) {
         println!("checking external or previous collapse changes");
         // Re-load possibilities each iteration to account for external changes
@@ -409,27 +418,58 @@ where
         self.propagate_constraints();
     }
 
-    pub fn perform_all_steps(&mut self) {
+    fn _perform_all_steps(&mut self, rng: &mut impl Rng) {
         println!("collapsing");
-        while self.step().is_some() {}
+        while self._step(rng).is_some() {}
     }
 
-    pub fn collapse(&mut self) -> bool {
+    pub fn perform_all_steps(&mut self) {
+        self._perform_all_steps(&mut thread_rng())
+    }
+
+    pub fn perform_all_steps_with_custom_rng(&mut self, rng: &mut impl Rng) {
+        println!("collapsing");
+        while self.step_with_custom_rng(rng).is_some() {}
+    }
+
+    fn _collapse(&mut self, rng: &mut impl Rng) -> bool {
         self.initialize_collapse();
 
-        self.perform_all_steps();
+        self._perform_all_steps(rng);
 
         // Check if any cells are still None
         self.is_all_filled()
     }
 
-    pub fn collapse_and_validate(&mut self) -> Result<bool, WaveFunctionCollapseError<GT, T>> {
+    pub fn collapse(&mut self) -> bool {
+        self._collapse(&mut thread_rng())
+    }
+
+    pub fn collapse_with_custom_rng(&mut self, rng: &mut impl Rng) -> bool {
+        self._collapse(rng)
+    }
+
+    fn _collapse_and_validate(
+        &mut self,
+        rng: &mut impl Rng,
+    ) -> Result<bool, WaveFunctionCollapseError<GT, T>> {
         let res = self.collapse();
         if !self.is_valid(true) {
             Err(GridError::CompatibilityViolation.into())
         } else {
             Ok(res)
         }
+    }
+
+    pub fn collapse_and_validate(&mut self) -> Result<bool, WaveFunctionCollapseError<GT, T>> {
+        self._collapse_and_validate(&mut thread_rng())
+    }
+
+    pub fn collapse_and_validate_with_custom_rng(
+        &mut self,
+        rng: &mut impl Rng,
+    ) -> Result<bool, WaveFunctionCollapseError<GT, T>> {
+        self._collapse_and_validate(rng)
     }
 
     pub fn is_all_filled(&self) -> bool {
