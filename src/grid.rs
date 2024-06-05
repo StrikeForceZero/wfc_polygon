@@ -10,6 +10,7 @@ use crate::{
     Square, SquareSide, Tile, Triangle, TriangleSide,
 };
 use crate::compatibility_map::CompatibilityMapError;
+use crate::wfc::WrapMode;
 
 macro_rules! cast_tuple {
     ($from:ty, $to:ty, $tuple:expr) => {{
@@ -246,55 +247,61 @@ where
         self.get(x, y)
     }
 
-    pub fn get_neighbor_index(&self, x: usize, y: usize, side: Side) -> Option<usize> {
+    pub fn get_neighbor_index(
+        &self,
+        x: usize,
+        y: usize,
+        side: Side,
+        wrap_mode: Option<WrapMode>,
+    ) -> Option<usize> {
         let x = x as i32;
         let y = y as i32;
         let width = self.width as i32;
         let height = self.height as i32;
         let polygon = self.polygon.into();
-        let nix = match polygon {
+        let (dx, dy) = match polygon {
             Polygon::Triangle => match side {
-                Side::Bottom => (y + 1) * width + x,
-                Side::TopLeft => (y - 1) * width + (x - 1),
-                Side::TopRight => (y - 1) * width + (x + 1),
+                Side::Bottom => (0, 1),
+                Side::TopLeft => (-1, -1),
+                Side::TopRight => (1, -1),
                 _ => panic!(" invalid side {side:?} for {polygon:?}"),
             },
             Polygon::Square => match side {
-                Side::Top => (y - 1) * width + x,
-                Side::Bottom => (y + 1) * width + x,
-                Side::Left => y * width + (x - 1),
-                Side::Right => y * width + (x + 1),
+                Side::Top => (0, -1),
+                Side::Bottom => (0, 1),
+                Side::Left => (-1, 0),
+                Side::Right => (1, 0),
                 _ => panic!(" invalid side {side:?} for {polygon:?}"),
             },
             Polygon::Hexagon(HexagonType::FlatTop) => match side {
-                Side::Top => (y - 1) * width + x,
-                Side::Bottom => (y + 1) * width + x,
+                Side::Top => (0, -1),
+                Side::Bottom => (0, 1),
                 Side::TopLeft => {
                     if x % 2 == 0 {
-                        y * width + (x - 1)
+                        (-1, 0)
                     } else {
-                        (y - 1) * width + (x - 1)
+                        (-1, -1)
                     }
                 }
                 Side::TopRight => {
                     if x % 2 == 0 {
-                        y * width + (x + 1)
+                        (1, 0)
                     } else {
-                        (y - 1) * width + (x + 1)
+                        (1, -1)
                     }
                 }
                 Side::BottomLeft => {
                     if x % 2 == 0 {
-                        (y + 1) * width + (x - 1)
+                        (-1, 1)
                     } else {
-                        y * width + (x - 1)
+                        (-1, 0)
                     }
                 }
                 Side::BottomRight => {
                     if x % 2 == 0 {
-                        (y + 1) * width + (x + 1)
+                        (1, 1)
                     } else {
-                        y * width + (x + 1)
+                        (1, 0)
                     }
                 }
                 _ => panic!(" invalid side {side:?} for {polygon:?}"),
@@ -302,67 +309,64 @@ where
             Polygon::Hexagon(HexagonType::PointyTop) => match side {
                 Side::TopLeft => {
                     if y % 2 == 0 {
-                        (y - 1) * width + (x - 1)
+                        (-1, -1)
                     } else {
-                        (y - 1) * width + x
+                        (0, -1)
                     }
                 }
                 Side::TopRight => {
                     if y % 2 == 0 {
-                        (y - 1) * width + x
+                        (0, -1)
                     } else {
-                        (y - 1) * width + (x + 1)
+                        (1, -1)
                     }
                 }
                 Side::BottomLeft => {
                     if y % 2 == 0 {
-                        (y + 1) * width + (x - 1)
+                        (-1, 1)
                     } else {
-                        (y + 1) * width + x
+                        (0, 1)
                     }
                 }
                 Side::BottomRight => {
                     if y % 2 == 0 {
-                        (y + 1) * width + x
+                        (0, 1)
                     } else {
-                        (y + 1) * width + (x + 1)
+                        (1, 1)
                     }
                 }
-                Side::Left => y * width + (x - 1),
-                Side::Right => y * width + (x + 1),
+                Side::Left => (-1, 0),
+                Side::Right => (1, 0),
                 _ => panic!(" invalid side {side:?} for {polygon:?}"),
             },
         };
-        // Ensure neighbor_index is within valid range
-        if nix >= 0 && nix < (width * height) {
-            let (nx, ny) = cast_tuple!(usize, i32, self.index_to_xy(nix as usize));
 
-            if nx >= 0
-                && nx < width
-                && ny >= 0
-                && ny < height
-                // make sure we didn't wrap around the grid
-                && x.abs_diff(nx) <= 1
-                && y.abs_diff(ny) <= 1
-            {
-                Some(nix as usize)
-            } else {
-                // overflow
-                None
-            }
+        let (nx, ny) = match wrap_mode {
+            Some(wrap) => wrap.wrap_xy(self.width, self.height, (x, y), (dx, dy)),
+            None => (x + dx, y + dy),
+        };
+
+        // Ensure neighbor_index is within valid range
+        if (0..width).contains(&nx) && (0..height).contains(&ny) {
+            let (nx, ny) = cast_tuple!(i32, usize, (nx, ny));
+            Some(self.xy_to_index(nx, ny))
         } else {
-            // negative
             None
         }
     }
 
-    fn _neighbor_indexes(&self, x: usize, y: usize) -> Vec<(Side, Option<usize>)> {
+    fn _neighbor_indexes(
+        &self,
+        x: usize,
+        y: usize,
+        wrap_mode: Option<WrapMode>,
+    ) -> Vec<(Side, Option<usize>)> {
         match self.polygon.into() {
             Polygon::Triangle => [Side::TopLeft, Side::TopRight, Side::Bottom]
-                .map(|side| (side, self.get_neighbor_index(x, y, side)))
+                .map(|side| (side, self.get_neighbor_index(x, y, side, wrap_mode)))
                 .to_vec(),
             Polygon::Square => [Side::Top, Side::Right, Side::Bottom, Side::Left]
-                .map(|side| (side, self.get_neighbor_index(x, y, side)))
+                .map(|side| (side, self.get_neighbor_index(x, y, side, wrap_mode)))
                 .to_vec(),
             Polygon::Hexagon(HexagonType::FlatTop) => [
                 Side::Top,
@@ -372,7 +376,7 @@ where
                 Side::BottomLeft,
                 Side::Bottom,
             ]
-            .map(|side| (side, self.get_neighbor_index(x, y, side)))
+            .map(|side| (side, self.get_neighbor_index(x, y, side, wrap_mode)))
             .to_vec(),
             Polygon::Hexagon(HexagonType::PointyTop) => [
                 Side::TopLeft,
@@ -382,13 +386,18 @@ where
                 Side::BottomLeft,
                 Side::BottomRight,
             ]
-            .map(|side| (side, self.get_neighbor_index(x, y, side)))
+            .map(|side| (side, self.get_neighbor_index(x, y, side, wrap_mode)))
             .to_vec(),
         }
     }
 
-    pub fn neighbor_indexes(&self, x: usize, y: usize) -> Vec<(GT::SideType, Option<usize>)> {
-        self._neighbor_indexes(x, y)
+    pub fn neighbor_indexes(
+        &self,
+        x: usize,
+        y: usize,
+        wrap_mode: Option<WrapMode>,
+    ) -> Vec<(GT::SideType, Option<usize>)> {
+        self._neighbor_indexes(x, y, wrap_mode)
             .into_iter()
             .map(|(side, nix_opt)| {
                 (
@@ -399,8 +408,13 @@ where
             .collect::<Vec<_>>()
     }
 
-    pub fn neighbors(&self, x: usize, y: usize) -> Vec<(GT::SideType, Option<T>)> {
-        self.neighbor_indexes(x, y)
+    pub fn neighbors(
+        &self,
+        x: usize,
+        y: usize,
+        wrap_mode: Option<WrapMode>,
+    ) -> Vec<(GT::SideType, Option<T>)> {
+        self.neighbor_indexes(x, y, wrap_mode)
             .into_iter()
             .map(|(side, index)| (side, index.and_then(|index| self.get_by_index(index))))
             .collect()
@@ -776,10 +790,9 @@ mod tests {
                     },
                 };
 
+                let width = TEST_GRID_SIZE as i32;
                 let (new_x, new_y) = match wrap {
-                    Some(WrapMode::X) => ((x + dx + 3) % 3, y + dy),
-                    Some(WrapMode::Y) => (x + dx, (y + dy + 3) % 3),
-                    Some(WrapMode::Both) => ((x + dx + 3) % 3, (y + dy + 3) % 3),
+                    Some(wrap) => wrap.wrap_xy(TEST_GRID_SIZE, TEST_GRID_SIZE, (x, y), (dx, dy)),
                     None => (x + dx, y + dy),
                 };
 
@@ -799,12 +812,20 @@ mod tests {
         }
 
         impl<T: Tile<T>> GridWrapper<T> {
-            fn get_neighbor_index(&self, x: usize, y: usize, side: Side) -> Option<usize> {
+            fn get_neighbor_index(
+                &self,
+                x: usize,
+                y: usize,
+                side: Side,
+                wrap_mode: Option<WrapMode>,
+            ) -> Option<usize> {
                 match self {
-                    GridWrapper::Triangle(grid) => grid.get_neighbor_index(x, y, side),
-                    GridWrapper::Square(grid) => grid.get_neighbor_index(x, y, side),
-                    GridWrapper::FlatTopHex(grid) => grid.get_neighbor_index(x, y, side),
-                    GridWrapper::PointyTopHex(grid) => grid.get_neighbor_index(x, y, side),
+                    GridWrapper::Triangle(grid) => grid.get_neighbor_index(x, y, side, wrap_mode),
+                    GridWrapper::Square(grid) => grid.get_neighbor_index(x, y, side, wrap_mode),
+                    GridWrapper::FlatTopHex(grid) => grid.get_neighbor_index(x, y, side, wrap_mode),
+                    GridWrapper::PointyTopHex(grid) => {
+                        grid.get_neighbor_index(x, y, side, wrap_mode)
+                    }
                 }
             }
             fn xy_to_index(&self, x: usize, y: usize) -> usize {
@@ -870,12 +891,12 @@ mod tests {
                         for y in 0..=2 {
                             let current = grid.get(x, y).expect("expected tile");
                             let neighbor = grid
-                                .get_neighbor_index(x, y, side)
+                                .get_neighbor_index(x, y, side, wrap_mode)
                                 .and_then(|index| grid.get_by_index(index));
                             let expected = grid
                                 .get(x, y)
                                 .expect("expected tile")
-                                .expected_tile(polygon, side, None);
+                                .expected_tile(polygon, side, wrap_mode);
                             assert_eq!(
                                 neighbor, expected,
                                 "{polygon:?} ({x},{y}) {side:?} {current:?} -> {neighbor:?} != {expected:?}"
@@ -889,6 +910,11 @@ mod tests {
         #[test]
         fn no_wrap() {
             test_wrap(None);
+        }
+
+        #[test]
+        fn wrap_both() {
+            test_wrap(Some(WrapMode::Both));
         }
     }
 }

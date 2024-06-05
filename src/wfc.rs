@@ -36,6 +36,81 @@ pub enum WrapMode {
     Both,
 }
 
+impl WrapMode {
+    pub fn wrap_xy(
+        &self,
+        width: usize,
+        height: usize,
+        pos: (i32, i32),
+        delta: (i32, i32),
+    ) -> (i32, i32) {
+        let width = width as i32;
+        let height = height as i32;
+        let (x, y) = pos;
+        let (dx, dy) = delta;
+        match self {
+            WrapMode::X => ((x + dx + width) % width, y + dy),
+            WrapMode::Y => (x + dx, (y + dy + height) % height),
+            WrapMode::Both => ((x + dx + width) % width, (y + dy + height) % height),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::WrapMode;
+
+    const TEST_SIZE: usize = 2;
+
+    #[test]
+    fn test_wrap_xy_x() {
+        assert_eq!(
+            WrapMode::X.wrap_xy(TEST_SIZE, TEST_SIZE, (1, 0), (1, 0)),
+            (0, 0)
+        );
+        assert_eq!(
+            WrapMode::X.wrap_xy(TEST_SIZE, TEST_SIZE, (1, 0), (2, 0)),
+            (1, 0)
+        );
+        assert_eq!(
+            WrapMode::X.wrap_xy(TEST_SIZE, TEST_SIZE, (0, 1), (-1, 0)),
+            (1, 1)
+        );
+    }
+
+    #[test]
+    fn test_wrap_xy_y() {
+        assert_eq!(
+            WrapMode::Y.wrap_xy(TEST_SIZE, TEST_SIZE, (0, 1), (0, 1)),
+            (0, 0)
+        );
+        assert_eq!(
+            WrapMode::Y.wrap_xy(TEST_SIZE, TEST_SIZE, (0, 1), (0, 2)),
+            (0, 1)
+        );
+        assert_eq!(
+            WrapMode::Y.wrap_xy(TEST_SIZE, TEST_SIZE, (1, 0), (0, -1)),
+            (1, 1)
+        );
+    }
+
+    #[test]
+    fn test_wrap_xy_both() {
+        assert_eq!(
+            WrapMode::Both.wrap_xy(TEST_SIZE, TEST_SIZE, (1, 1), (1, 1)),
+            (0, 0)
+        );
+        assert_eq!(
+            WrapMode::Both.wrap_xy(TEST_SIZE, TEST_SIZE, (1, 1), (2, 2)),
+            (1, 1)
+        );
+        assert_eq!(
+            WrapMode::Both.wrap_xy(TEST_SIZE, TEST_SIZE, (0, 0), (-1, -1)),
+            (1, 1)
+        );
+    }
+}
+
 #[derive(Default, Serialize, Deserialize)]
 pub struct WaveFunctionCollapse<GT, T>
 where
@@ -115,7 +190,7 @@ where
             let Some(tile) = self.grid.get(x, y) else {
                 continue;
             };
-            for (side, neighbor_index_opt) in self.grid.neighbor_indexes(x, y) {
+            for (side, neighbor_index_opt) in self.grid.neighbor_indexes(x, y, self.wrap_mode) {
                 if let Some(neighbor_index) = neighbor_index_opt {
                     if let Some(allowed_tiles) = self.compatibility.get(tile, side) {
                         let old_len = if self.invalid_possibilities[neighbor_index].is_empty() {
@@ -301,7 +376,7 @@ where
             };
             self.possibilities[ix] = HashSet::from([tile]);
             let (x, y) = self.grid.index_to_xy(ix);
-            for (side, nix) in self.grid.neighbor_indexes(x, y) {
+            for (side, nix) in self.grid.neighbor_indexes(x, y, self.wrap_mode) {
                 let Some(nix) = nix else {
                     continue;
                 };
@@ -379,7 +454,7 @@ where
                 }
                 continue;
             };
-            for (side, nix) in self.grid.neighbor_indexes(x, y) {
+            for (side, nix) in self.grid.neighbor_indexes(x, y, self.wrap_mode) {
                 let Some(nix) = nix else {
                     continue;
                 };
@@ -410,7 +485,7 @@ where
                 }
             };
             let (x, y) = self.grid.index_to_xy(ix);
-            for (side, nix) in self.grid.neighbor_indexes(x, y) {
+            for (side, nix) in self.grid.neighbor_indexes(x, y, self.wrap_mode) {
                 let Some(nix) = nix else {
                     continue;
                 };
