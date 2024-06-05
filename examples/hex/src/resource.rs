@@ -1,6 +1,7 @@
 use bevy::ecs::system::SystemId;
 use bevy::prelude::*;
 use bevy::utils::HashMap;
+use rand::prelude::StdRng;
 
 use wfc_polygon::wfc::WrapMode;
 
@@ -32,4 +33,7 @@ pub struct WfcAnimate(pub bool);
 pub struct WfcWrapMode(pub Option<WrapMode>);
 
 #[derive(Debug, Default, Resource)]
-pub struct Seed(pub u64);
+pub struct Seed(pub Option<u64>);
+
+#[derive(Debug, Default, Resource)]
+pub struct CustomRng(pub Option<StdRng>);

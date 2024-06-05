@@ -1,29 +1,43 @@
 use bevy::prelude::*;
+use rand::prelude::StdRng;
+use rand::rngs::mock::StepRng;
+use rand::SeedableRng;
 
 use wfc_polygon::wfc::WrapMode;
 
+use crate::{INITIAL_SEED, system};
 use crate::component::{HexData, HexInvalid, HexPos, HexPossibilities, HexText, InnerHex};
 use crate::event::{ChangeHexMode, ClearCache, GridCellSet, MapGenerated, RegenerateMap, WfcStep};
 use crate::resource::{
-    ColorMaterialMap, GenMapSystemId, GridSize, HexPossibilitiesCache, HexScale, HexTextEnabled,
-    Seed, WfcAnimate, WfcWrapMode,
+    ColorMaterialMap, CustomRng, GenMapSystemId, GridSize, HexPossibilitiesCache, HexScale,
+    HexTextEnabled, Seed, WfcAnimate, WfcWrapMode,
 };
-use crate::system;
 
 pub struct SubPlugin;
 
 impl Plugin for SubPlugin {
     fn build(&self, app: &mut App) {
         let gen_map_res = GenMapSystemId(app.world.register_system(system::gen_map));
+        let (custom_seed, custom_rng) = if let Some(initial_seed) = INITIAL_SEED {
+            (
+                Some(initial_seed),
+                Some(
+                    StdRng::from_rng(StepRng::new(initial_seed, 1)).expect("failed to create rng"),
+                ),
+            )
+        } else {
+            (None, None)
+        };
         app
             /* rustfmt next line chain */
             .insert_resource(gen_map_res)
             .insert_resource(HexScale(20.0))
             .insert_resource(GridSize(UVec2::splat(40)))
             .insert_resource(HexTextEnabled(false))
-            .insert_resource(WfcAnimate(false))
+            .insert_resource(WfcAnimate(true))
             .insert_resource(WfcWrapMode(Some(WrapMode::Both)))
-            .insert_resource(Seed(0))
+            .insert_resource(Seed(custom_seed))
+            .insert_resource(CustomRng(custom_rng))
             .register_type::<HexPos>()
             .register_type::<HexData>()
             .register_type::<HexPossibilities>()
