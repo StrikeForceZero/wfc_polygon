@@ -238,9 +238,11 @@ where
             let state = if self.possibilities[index].is_empty() {
                 State::Backtrack
             } else {
-                let choices = self.possibilities[index]
+                let mut choices = self.possibilities[index]
                     .difference(&self.invalid_possibilities[index])
                     .collect::<Vec<_>>();
+                // sort required for deterministic generation
+                choices.sort();
                 if choices.is_empty() {
                     State::Backtrack
                 } else {
