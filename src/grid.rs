@@ -518,7 +518,7 @@ mod tests {
         let max_retries = 10;
 
         for _ in 1..=max_retries {
-            if wfc.collapse().unwrap_or_else(|err| panic!("{err}")) {
+            if wfc.collapse() {
                 break;
             }
         }
