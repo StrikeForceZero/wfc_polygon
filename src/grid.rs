@@ -609,4 +609,286 @@ mod tests {
 
         Ok(())
     }
+
+    mod wrap {
+        use crate::TileInstance;
+        use crate::wfc::WrapMode;
+
+        use super::*;
+
+        #[derive(
+            Debug,
+            Default,
+            Clone,
+            Copy,
+            PartialEq,
+            Eq,
+            Hash,
+            Ord,
+            PartialOrd,
+            Serialize,
+            Deserialize,
+        )]
+        enum TestTile {
+            #[default]
+            None,
+            _0_0,
+            _1_0,
+            _2_0,
+            _0_1,
+            _1_1,
+            _2_1,
+            _0_2,
+            _1_2,
+            _2_2,
+        }
+
+        impl TileInstance for TestTile {}
+
+        impl Tile<TestTile> for TestTile {
+            fn all() -> Vec<TestTile> {
+                vec![
+                    Self::_0_0,
+                    Self::_1_0,
+                    Self::_2_0,
+                    Self::_0_1,
+                    Self::_1_1,
+                    Self::_2_1,
+                    Self::_0_2,
+                    Self::_1_2,
+                    Self::_2_2,
+                ]
+            }
+        }
+
+        impl TestTile {
+            fn from_coordinates(x: i32, y: i32) -> Option<Self> {
+                match (x, y) {
+                    (0, 0) => Some(Self::_0_0),
+                    (1, 0) => Some(Self::_1_0),
+                    (2, 0) => Some(Self::_2_0),
+                    (0, 1) => Some(Self::_0_1),
+                    (1, 1) => Some(Self::_1_1),
+                    (2, 1) => Some(Self::_2_1),
+                    (0, 2) => Some(Self::_0_2),
+                    (1, 2) => Some(Self::_1_2),
+                    (2, 2) => Some(Self::_2_2),
+                    _ => None,
+                }
+            }
+
+            fn coordinates(&self) -> (i32, i32) {
+                match self {
+                    Self::None => panic!("none used"),
+                    Self::_0_0 => (0, 0),
+                    Self::_1_0 => (1, 0),
+                    Self::_2_0 => (2, 0),
+                    Self::_0_1 => (0, 1),
+                    Self::_1_1 => (1, 1),
+                    Self::_2_1 => (2, 1),
+                    Self::_0_2 => (0, 2),
+                    Self::_1_2 => (1, 2),
+                    Self::_2_2 => (2, 2),
+                }
+            }
+
+            pub fn expected_tile(
+                &self,
+                polygon: Polygon,
+                side: Side,
+                wrap: Option<WrapMode>,
+            ) -> Option<Self> {
+                let (x, y) = self.coordinates();
+                let (dx, dy) = match polygon {
+                    Polygon::Triangle => todo!(),
+                    Polygon::Square => match side {
+                        Side::Top => (0, -1),
+                        Side::Bottom => (0, 1),
+                        Side::Left => (-1, 0),
+                        Side::Right => (1, 0),
+                        _ => panic!("unexpected side {side:?} for {polygon:?}"),
+                    },
+                    Polygon::Hexagon(HexagonType::FlatTop) => match side {
+                        Side::Top => (0, -1),
+                        Side::Bottom => (0, 1),
+                        Side::TopLeft => {
+                            if x % 2 == 0 {
+                                (-1, 0)
+                            } else {
+                                (-1, -1)
+                            }
+                        }
+                        Side::TopRight => {
+                            if x % 2 == 0 {
+                                (1, 0)
+                            } else {
+                                (1, -1)
+                            }
+                        }
+                        Side::BottomLeft => {
+                            if x % 2 == 0 {
+                                (-1, 1)
+                            } else {
+                                (-1, 0)
+                            }
+                        }
+                        Side::BottomRight => {
+                            if x % 2 == 0 {
+                                (1, 1)
+                            } else {
+                                (1, 0)
+                            }
+                        }
+                        _ => panic!("unexpected side {side:?} for {polygon:?}"),
+                    },
+                    Polygon::Hexagon(HexagonType::PointyTop) => match side {
+                        Side::Left => (-1, 0),
+                        Side::Right => (1, 0),
+                        Side::TopLeft => {
+                            if y % 2 == 0 {
+                                (-1, -1)
+                            } else {
+                                (0, -1)
+                            }
+                        }
+                        Side::TopRight => {
+                            if y % 2 == 0 {
+                                (0, -1)
+                            } else {
+                                (1, -1)
+                            }
+                        }
+                        Side::BottomLeft => {
+                            if y % 2 == 0 {
+                                (-1, 1)
+                            } else {
+                                (0, 1)
+                            }
+                        }
+                        Side::BottomRight => {
+                            if y % 2 == 0 {
+                                (0, 1)
+                            } else {
+                                (1, 1)
+                            }
+                        }
+                        _ => panic!("unexpected side {side:?} for {polygon:?}"),
+                    },
+                };
+
+                let (new_x, new_y) = match wrap {
+                    Some(WrapMode::X) => ((x + dx + 3) % 3, y + dy),
+                    Some(WrapMode::Y) => (x + dx, (y + dy + 3) % 3),
+                    Some(WrapMode::Both) => ((x + dx + 3) % 3, (y + dy + 3) % 3),
+                    None => (x + dx, y + dy),
+                };
+
+                if !(0..=2).contains(&new_x) || !(0..=2).contains(&new_y) {
+                    None
+                } else {
+                    Self::from_coordinates(new_x, new_y)
+                }
+            }
+        }
+
+        enum GridWrapper<T: Tile<T>> {
+            Triangle(Grid<TriangleGrid, T>),
+            Square(Grid<SquareGrid, T>),
+            FlatTopHex(Grid<FlatTopHexGrid, T>),
+            PointyTopHex(Grid<PointyTopHexGrid, T>),
+        }
+
+        impl<T: Tile<T>> GridWrapper<T> {
+            fn get_neighbor_index(&self, x: usize, y: usize, side: Side) -> Option<usize> {
+                match self {
+                    GridWrapper::Triangle(grid) => grid.get_neighbor_index(x, y, side),
+                    GridWrapper::Square(grid) => grid.get_neighbor_index(x, y, side),
+                    GridWrapper::FlatTopHex(grid) => grid.get_neighbor_index(x, y, side),
+                    GridWrapper::PointyTopHex(grid) => grid.get_neighbor_index(x, y, side),
+                }
+            }
+            fn xy_to_index(&self, x: usize, y: usize) -> usize {
+                match self {
+                    GridWrapper::Triangle(grid) => grid.xy_to_index(x, y),
+                    GridWrapper::Square(grid) => grid.xy_to_index(x, y),
+                    GridWrapper::FlatTopHex(grid) => grid.xy_to_index(x, y),
+                    GridWrapper::PointyTopHex(grid) => grid.xy_to_index(x, y),
+                }
+            }
+            fn get(&self, x: usize, y: usize) -> Option<T> {
+                match self {
+                    GridWrapper::Triangle(grid) => grid.get(x, y),
+                    GridWrapper::Square(grid) => grid.get(x, y),
+                    GridWrapper::FlatTopHex(grid) => grid.get(x, y),
+                    GridWrapper::PointyTopHex(grid) => grid.get(x, y),
+                }
+            }
+            fn get_by_index(&self, index: usize) -> Option<T> {
+                match self {
+                    GridWrapper::Triangle(grid) => grid.get_by_index(index),
+                    GridWrapper::Square(grid) => grid.get_by_index(index),
+                    GridWrapper::FlatTopHex(grid) => grid.get_by_index(index),
+                    GridWrapper::PointyTopHex(grid) => grid.get_by_index(index),
+                }
+            }
+        }
+
+        const TEST_GRID_SIZE: usize = 3;
+
+        fn filled_test_grid<GT: GridType<TestTile>>() -> Grid<GT, TestTile> {
+            let mut grid = GT::new(TEST_GRID_SIZE, TEST_GRID_SIZE);
+            grid.cells[0] = Some(TestTile::_0_0);
+            grid.cells[1] = Some(TestTile::_1_0);
+            grid.cells[2] = Some(TestTile::_2_0);
+            grid.cells[3] = Some(TestTile::_0_1);
+            grid.cells[4] = Some(TestTile::_1_1);
+            grid.cells[5] = Some(TestTile::_2_1);
+            grid.cells[6] = Some(TestTile::_0_2);
+            grid.cells[7] = Some(TestTile::_1_2);
+            grid.cells[8] = Some(TestTile::_2_2);
+            grid
+        }
+
+        fn test_wrap(wrap_mode: Option<WrapMode>) {
+            for polygon in [
+                Polygon::Square,
+                Polygon::Hexagon(HexagonType::FlatTop),
+                Polygon::Hexagon(HexagonType::PointyTop),
+            ] {
+                let grid: GridWrapper<TestTile> = match polygon {
+                    Polygon::Triangle => GridWrapper::Triangle(filled_test_grid::<TriangleGrid>()),
+                    Polygon::Square => GridWrapper::Square(filled_test_grid::<SquareGrid>()),
+                    Polygon::Hexagon(HexagonType::FlatTop) => {
+                        GridWrapper::FlatTopHex(filled_test_grid::<FlatTopHexGrid>())
+                    }
+                    Polygon::Hexagon(HexagonType::PointyTop) => {
+                        GridWrapper::PointyTopHex(filled_test_grid::<PointyTopHexGrid>())
+                    }
+                };
+                for side in polygon.sides() {
+                    for x in 0..=2 {
+                        for y in 0..=2 {
+                            let current = grid.get(x, y).expect("expected tile");
+                            let neighbor = grid
+                                .get_neighbor_index(x, y, side)
+                                .and_then(|index| grid.get_by_index(index));
+                            let expected = grid
+                                .get(x, y)
+                                .expect("expected tile")
+                                .expected_tile(polygon, side, None);
+                            assert_eq!(
+                                neighbor, expected,
+                                "{polygon:?} ({x},{y}) {side:?} {current:?} -> {neighbor:?} != {expected:?}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+
+        #[test]
+        fn no_wrap() {
+            test_wrap(None);
+        }
+    }
 }

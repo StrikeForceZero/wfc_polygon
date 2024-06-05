@@ -29,6 +29,13 @@ where
     CompatibilityMapError(#[from] CompatibilityMapError<GT, T>),
 }
 
+#[derive(Debug, Copy, Clone, PartialEq, Serialize, Deserialize)]
+pub enum WrapMode {
+    X,
+    Y,
+    Both,
+}
+
 #[derive(Default, Serialize, Deserialize)]
 pub struct WaveFunctionCollapse<GT, T>
 where
@@ -36,6 +43,7 @@ where
     T: Tile<T>,
 {
     grid: Grid<GT, T>,
+    wrap_mode: Option<WrapMode>,
     set_history: Vec<usize>,
     invalid_possibilities: Vec<HashSet<T>>,
     possibilities: Vec<HashSet<T>>,
@@ -76,6 +84,7 @@ where
 
         Self {
             grid,
+            wrap_mode: None,
             set_history: Vec::new(),
             invalid_possibilities: possibilities.iter().map(|_| HashSet::new()).collect(),
             possibilities,
@@ -83,6 +92,10 @@ where
             propagation_queue,
             entropy_queue,
         }
+    }
+
+    pub fn set_wrap_mode(&mut self, wrap_mode: Option<WrapMode>) {
+        self.wrap_mode = wrap_mode;
     }
 
     pub fn grid(&self) -> &Grid<GT, T> {
