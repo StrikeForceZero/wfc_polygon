@@ -1,10 +1,12 @@
 use bevy::prelude::*;
 
+use wfc_polygon::wfc::WrapMode;
+
 use crate::component::{HexData, HexInvalid, HexPos, HexPossibilities, HexText, InnerHex};
 use crate::event::{ChangeHexMode, ClearCache, GridCellSet, MapGenerated, RegenerateMap, WfcStep};
 use crate::resource::{
     ColorMaterialMap, GenMapSystemId, GridSize, HexPossibilitiesCache, HexScale, HexTextEnabled,
-    WfcAnimate,
+    WfcAnimate, WfcWrapMode,
 };
 use crate::system;
 
@@ -20,6 +22,7 @@ impl Plugin for SubPlugin {
             .insert_resource(GridSize(UVec2::splat(40)))
             .insert_resource(HexTextEnabled(false))
             .insert_resource(WfcAnimate(false))
+            .insert_resource(WfcWrapMode(Some(WrapMode::Both)))
             .register_type::<HexPos>()
             .register_type::<HexData>()
             .register_type::<HexPossibilities>()

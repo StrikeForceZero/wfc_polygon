@@ -2,7 +2,7 @@ use std::io::{Read, Write};
 
 use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 use bevy::prelude::*;
-use bevy::prelude::KeyCode::{KeyT, KeyY};
+use bevy::prelude::KeyCode::{KeyM, KeyT, KeyY};
 use bevy::sprite::{MaterialMesh2dBundle, Mesh2dHandle};
 use bevy::utils::HashSet;
 use bevy_inspector_egui::bevy_egui::EguiContexts;
@@ -11,7 +11,7 @@ use bevy_mod_picking::highlight::InitialHighlight;
 use bevy_mod_picking::prelude::*;
 
 use wfc_polygon::grid::{FlatTopHexGrid, GridType};
-use wfc_polygon::wfc::WaveFunctionCollapse;
+use wfc_polygon::wfc::{WaveFunctionCollapse, WrapMode};
 
 use crate::{HEX_MODE, HexMode};
 use crate::color_wrapper::ColorWrapper;
@@ -53,6 +53,7 @@ pub fn gen_map(
     mut regenerate_map_event_writer: EventWriter<MapGenerated>,
     mut wfc_step_event_writer: EventWriter<WfcStep>,
     mut grid_cell_set_event_writer: EventWriter<GridCellSet>,
+    wrap_mode: Res<WfcWrapMode>,
     wfc_animate: Res<WfcAnimate>,
     grid_size: Res<GridSize>,
 ) {
@@ -91,6 +92,8 @@ pub fn gen_map(
             FlatTopHexGrid::new(grid_size.0.x as usize, grid_size.0.y as usize),
             compatibility_map,
         );
+
+        wfc.set_wrap_mode(wrap_mode.0);
 
         if wfc_animate.0 {
             wfc.initialize_collapse();
@@ -132,6 +135,7 @@ pub fn input_handler(
     mut scroll_evr: EventReader<MouseWheel>,
     mut hex_text_enabled: ResMut<HexTextEnabled>,
     mut wfc_animate: ResMut<WfcAnimate>,
+    mut wfc_wrap_mode: ResMut<WfcWrapMode>,
     hex_scale: Res<HexScale>,
     hex_text_query: Query<Entity, With<HexText>>,
     time: Res<Time>,
@@ -164,6 +168,15 @@ pub fn input_handler(
         for entity in hex_text_query.iter() {
             commands.entity(entity).insert(visibility);
         }
+    }
+    if keyboard_input.just_pressed(KeyM) {
+        wfc_wrap_mode.0 = match wfc_wrap_mode.0 {
+            None => Some(WrapMode::Both),
+            Some(WrapMode::Both) => Some(WrapMode::X),
+            Some(WrapMode::X) => Some(WrapMode::Y),
+            Some(WrapMode::Y) => None,
+        };
+        println!("set wrap mode to {:?}", wfc_wrap_mode.0);
     }
     for ev in scroll_evr.read() {
         let delta = match ev.unit {
