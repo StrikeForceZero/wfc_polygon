@@ -32,6 +32,13 @@ enum AnimateMode {
     SingleManual,
 }
 
+#[derive(Debug, Default, Copy, Clone, PartialEq, Reflect)]
+enum TextMode {
+    Index,
+    #[default]
+    PossibilityCount,
+}
+
 impl std::fmt::Display for HexMode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let str = match self {

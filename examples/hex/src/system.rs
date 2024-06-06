@@ -19,7 +19,7 @@ use wfc_polygon::grid::{FlatTopHexGrid, GridType};
 use wfc_polygon::Tile;
 use wfc_polygon::wfc::{WaveFunctionCollapse, WrapMode};
 
-use crate::{AnimateMode, HEX_MODE, HexMode};
+use crate::{AnimateMode, HEX_MODE, HexMode, TextMode};
 use crate::color_wrapper::ColorWrapper;
 use crate::component::*;
 use crate::event::{ChangeHexMode, ClearCache, GridCellSet, MapGenerated, RegenerateMap, WfcStep};
@@ -182,14 +182,15 @@ pub fn input_handler(
     keyboard_input: Res<ButtonInput<KeyCode>>,
     mut camera_query: Query<(&mut Transform, &mut OrthographicProjection), With<MainCamera>>,
     mut scroll_evr: EventReader<MouseWheel>,
-    mut hex_text_enabled: ResMut<HexTextEnabled>,
+    mut hex_text_mode: ResMut<HexTextMode>,
     mut wfc_animate: ResMut<WfcAnimate>,
     mut wfc_wrap_mode: ResMut<WfcWrapMode>,
     mut seed_res: ResMut<Seed>,
     mut custom_rng: ResMut<CustomRng>,
     mut events: InputHandlerEventParams,
     hex_scale: Res<HexScale>,
-    hex_text_query: Query<Entity, With<HexText>>,
+    hex_query: Query<(Entity, Option<&HexIx>, Option<&HexPossibilities>), With<HexData>>,
+    hex_text_query: Query<(Entity, &Parent), With<HexText>>,
     time: Res<Time>,
 ) {
     if keyboard_input.pressed(KeyCode::ControlLeft) {
@@ -232,14 +233,30 @@ pub fn input_handler(
         println!("changing wfc animate to {:?}", wfc_animate.0);
     }
     if keyboard_input.just_pressed(KeyT) {
-        hex_text_enabled.0 = !hex_text_enabled.0;
-        let visibility = if hex_text_enabled.0 {
-            Visibility::Inherited
-        } else {
-            Visibility::Hidden
+        hex_text_mode.0 = match hex_text_mode.0 {
+            None => Some(TextMode::PossibilityCount),
+            Some(TextMode::PossibilityCount) => Some(TextMode::Index),
+            Some(TextMode::Index) => None,
         };
-        for entity in hex_text_query.iter() {
-            commands.entity(entity).insert(visibility);
+        println!("changing text mode to {:?}", hex_text_mode.0);
+        for (entity, parent) in hex_text_query.iter() {
+            let Ok((_, ix_opt, possibilities_opt)) = hex_query.get(parent.get()) else {
+                continue;
+            };
+            let (visibility, text) = match hex_text_mode.0 {
+                None => (Visibility::Hidden, String::new()),
+                Some(TextMode::PossibilityCount) => (
+                    Visibility::Inherited,
+                    possibilities_opt
+                        .map(|p| p.0.len().to_string())
+                        .unwrap_or_default(),
+                ),
+                Some(TextMode::Index) => (
+                    Visibility::Inherited,
+                    ix_opt.map(|ix| ix.0.to_string()).unwrap_or_default(),
+                ),
+            };
+            commands.entity(entity).insert((HexText(text), visibility));
         }
     }
     if keyboard_input.just_pressed(KeyR) {
@@ -447,6 +464,7 @@ fn create_hex(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<ColorMaterial>>,
     color_material_map: &mut ResMut<ColorMaterialMap>,
+    hex_text_mode: &Res<HexTextMode>,
 ) {
     let possibilities = create_hex_options.possibilities;
     let invalid_possibilities = create_hex_options.invalid_possibilities;
@@ -466,9 +484,15 @@ fn create_hex(
     }
     let hex_sides: Option<FlatTopHexagonalSegmentIdMap> = tile.map(|tile| tile.into());
     let mesh_color_tuples = crate::hex::mesh::hex_mesh(hex_sides);
+    let hex_text = match hex_text_mode.0 {
+        None => String::new(),
+        Some(TextMode::Index) => ix.to_string(),
+        Some(TextMode::PossibilityCount) => possibilities.len().to_string(),
+    };
     let id = commands
         .spawn((
             HexData(hex_sides),
+            HexIx(ix),
             HexPos(UVec2::new(x, y)),
             HexPossibilities(possibilities),
             HexInvalidPossibilities(invalid_possibilities),
@@ -497,7 +521,7 @@ fn create_hex(
                     PickableBundle::default(),
                 ));
             }
-            children.spawn(HexText(ix.to_string()));
+            children.spawn(HexText(hex_text));
         })
         .id();
     if create_hex_options.is_invalid {
@@ -509,6 +533,7 @@ pub fn grid_cell_set_event_handler(
     mut grid_cell_set: EventReader<GridCellSet>,
     grid_size: Res<GridSize>,
     hex_scale: Res<HexScale>,
+    hex_text_mode: Res<HexTextMode>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
@@ -538,6 +563,7 @@ pub fn grid_cell_set_event_handler(
                 &mut meshes,
                 &mut materials,
                 &mut color_material_map,
+                &hex_text_mode,
             );
         }
     }
@@ -547,6 +573,7 @@ pub fn map_generated_event_handler(
     mut events: EventReader<MapGenerated>,
     hex_query: Query<(Entity, &HexPos), With<HexData>>,
     hex_scale: Res<HexScale>,
+    hex_text_mode: Res<HexTextMode>,
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
@@ -597,6 +624,7 @@ pub fn map_generated_event_handler(
                 &mut meshes,
                 &mut materials,
                 &mut color_material_map,
+                &hex_text_mode,
             );
         }
     }
@@ -615,10 +643,10 @@ pub fn change_hex_mode_event_handler(mut events: EventReader<ChangeHexMode>) {
 
 pub fn on_hex_text_added(
     mut commands: Commands,
-    hex_text: Query<(Entity, &HexText), Added<HexText>>,
-    hex_text_enabled: Res<HexTextEnabled>,
+    hex_text: Query<(Entity, &HexText), Or<(Added<HexText>, Changed<HexText>)>>,
+    hex_text_mode: Res<HexTextMode>,
 ) {
-    let visibility = if hex_text_enabled.0 {
+    let visibility = if hex_text_mode.0.is_some() {
         Visibility::Inherited
     } else {
         Visibility::Hidden
