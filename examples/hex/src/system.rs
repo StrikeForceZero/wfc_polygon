@@ -1,8 +1,10 @@
 use std::io::{Read, Write};
 
+use bevy::asset::AsyncReadExt;
+use bevy::ecs::system::SystemParam;
 use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 use bevy::prelude::*;
-use bevy::prelude::KeyCode::{KeyM, KeyR, KeyT, KeyY};
+use bevy::prelude::KeyCode::{KeyM, KeyP, KeyR, KeyT, KeyY};
 use bevy::sprite::{MaterialMesh2dBundle, Mesh2dHandle};
 use bevy::utils::HashSet;
 use bevy_inspector_egui::bevy_egui::EguiContexts;
@@ -17,7 +19,7 @@ use wfc_polygon::grid::{FlatTopHexGrid, GridType};
 use wfc_polygon::Tile;
 use wfc_polygon::wfc::{WaveFunctionCollapse, WrapMode};
 
-use crate::{HEX_MODE, HexMode};
+use crate::{AnimateMode, HEX_MODE, HexMode};
 use crate::color_wrapper::ColorWrapper;
 use crate::component::*;
 use crate::event::{ChangeHexMode, ClearCache, GridCellSet, MapGenerated, RegenerateMap, WfcStep};
@@ -70,14 +72,19 @@ pub fn gen_map(
     };
     let mut consume_wfc = false;
     if let Some(inner_wfc) = local_state.wfc.as_mut() {
-        if wfc_animate.0 {
+        if matches!(
+            wfc_animate.0,
+            AnimateMode::SingleAuto | AnimateMode::SingleManual
+        ) {
             if let Some((tile, (x, y))) = inner_wfc.step_with_custom_rng(rng) {
                 // println!("set ({x}, {y}) - {tile:?}");
                 grid_cell_set_event_writer.send(GridCellSet {
                     tile,
                     pos: UVec2::from((x as u32, y as u32)),
                 });
-                wfc_step_event_writer.send(WfcStep);
+                if wfc_animate.0 == AnimateMode::SingleAuto {
+                    wfc_step_event_writer.send(WfcStep);
+                }
             } else {
                 consume_wfc = true;
             }
@@ -106,10 +113,15 @@ pub fn gen_map(
 
         wfc.set_wrap_mode(wrap_mode.0);
 
-        if wfc_animate.0 {
+        if matches!(
+            wfc_animate.0,
+            AnimateMode::SingleAuto | AnimateMode::SingleManual
+        ) {
             wfc.initialize_collapse();
             local_state.wfc = Some(wfc);
-            wfc_step_event_writer.send(WfcStep);
+            if wfc_animate.0 == AnimateMode::SingleAuto {
+                wfc_step_event_writer.send(WfcStep);
+            }
         } else {
             wfc.collapse_with_custom_rng(rng);
             local_state.wfc = Some(wfc);
@@ -143,18 +155,31 @@ pub fn wfc_step_handler(
     mut commands: Commands,
     gen_map_system_id: Res<GenMapSystemId>,
     mut step_event_reader: EventReader<WfcStep>,
+    wfc_animate: Res<WfcAnimate>,
 ) {
     for _ in step_event_reader.read() {
         commands.run_system(gen_map_system_id.0);
     }
 }
 
+#[derive(SystemParam)]
+pub struct InputHandlerEventParams<'w, 's> {
+    scroll_evr: EventReader<'w, 's, MouseWheel>,
+    regen_map_event_writer: EventWriter<'w, RegenerateMap>,
+    change_hex_mode_event_writer: EventWriter<'w, ChangeHexMode>,
+    wfc_step_event_writer: EventWriter<'w, WfcStep>,
+}
+
+#[derive(Debug, Default)]
+pub struct InputHandlerLocalState {
+    time_since_last_step: f32,
+}
+
 pub fn input_handler(
+    mut state: Local<InputHandlerLocalState>,
     mut commands: Commands,
     mouse_input: Res<ButtonInput<MouseButton>>,
     keyboard_input: Res<ButtonInput<KeyCode>>,
-    mut regen_map_event_writer: EventWriter<RegenerateMap>,
-    mut change_hex_mode_event_writer: EventWriter<ChangeHexMode>,
     mut camera_query: Query<(&mut Transform, &mut OrthographicProjection), With<MainCamera>>,
     mut scroll_evr: EventReader<MouseWheel>,
     mut hex_text_enabled: ResMut<HexTextEnabled>,
@@ -162,6 +187,7 @@ pub fn input_handler(
     mut wfc_wrap_mode: ResMut<WfcWrapMode>,
     mut seed_res: ResMut<Seed>,
     mut custom_rng: ResMut<CustomRng>,
+    mut events: InputHandlerEventParams,
     hex_scale: Res<HexScale>,
     hex_text_query: Query<Entity, With<HexText>>,
     time: Res<Time>,
@@ -169,7 +195,7 @@ pub fn input_handler(
     if keyboard_input.pressed(KeyCode::ControlLeft) {
         if mouse_input.just_pressed(MouseButton::Left) {
             println!("sending regen map event");
-            regen_map_event_writer.send(RegenerateMap);
+            events.regen_map_event_writer.send(RegenerateMap);
         } else if mouse_input.just_pressed(MouseButton::Right) {
             let hex_mode = *HEX_MODE.read().unwrap();
             let new_hex_mode = match hex_mode {
@@ -177,12 +203,33 @@ pub fn input_handler(
                 HexMode::Segments => HexMode::Full,
             };
             println!("changing hex mode to {new_hex_mode:?} for next generation");
-            change_hex_mode_event_writer.send(ChangeHexMode(new_hex_mode));
+            events
+                .change_hex_mode_event_writer
+                .send(ChangeHexMode(new_hex_mode));
         }
     }
+    if keyboard_input.pressed(KeyCode::Space)
+        && time.elapsed_seconds() - state.time_since_last_step > 0.25
+    {
+        state.time_since_last_step = time.elapsed_seconds();
+        println!("stepping");
+        events.wfc_step_event_writer.send(WfcStep);
+    }
     if keyboard_input.just_pressed(KeyY) {
-        wfc_animate.0 = !wfc_animate.0;
-        println!("changing wfc animate to {}", wfc_animate.0);
+        wfc_animate.0 = match wfc_animate.0 {
+            AnimateMode::FullAuto => AnimateMode::SingleAuto,
+            AnimateMode::SingleAuto => AnimateMode::FullAuto,
+            AnimateMode::SingleManual => AnimateMode::FullAuto,
+        };
+        println!("changing wfc animate to {:?}", wfc_animate.0);
+    }
+    if keyboard_input.just_pressed(KeyP) {
+        wfc_animate.0 = match wfc_animate.0 {
+            AnimateMode::FullAuto => AnimateMode::SingleManual,
+            AnimateMode::SingleAuto => AnimateMode::SingleManual,
+            AnimateMode::SingleManual => AnimateMode::SingleAuto,
+        };
+        println!("changing wfc animate to {:?}", wfc_animate.0);
     }
     if keyboard_input.just_pressed(KeyT) {
         hex_text_enabled.0 = !hex_text_enabled.0;
@@ -204,7 +251,7 @@ pub fn input_handler(
                 .unwrap_or_else(|err| panic!("failed to create rng from thread_rng - {err}")),
         );
         println!("sending regen map event");
-        regen_map_event_writer.send(RegenerateMap);
+        events.regen_map_event_writer.send(RegenerateMap);
     }
     if keyboard_input.just_pressed(KeyM) {
         wfc_wrap_mode.0 = match wfc_wrap_mode.0 {

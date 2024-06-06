@@ -24,6 +24,14 @@ enum HexMode {
     Segments,
 }
 
+#[derive(Debug, Default, Copy, Clone, PartialEq, Reflect)]
+enum AnimateMode {
+    #[default]
+    FullAuto,
+    SingleAuto,
+    SingleManual,
+}
+
 impl std::fmt::Display for HexMode {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
         let str = match self {
@@ -37,7 +45,7 @@ impl std::fmt::Display for HexMode {
 // TODO: this is silly but due to the current way its being read in `HexTileId` it needs to remain global
 static HEX_MODE: RwLock<HexMode> = RwLock::new(HexMode::Full);
 const DEBUG_COMPATIBILITY_MAP: bool = false;
-const INITIAL_SEED: Option<u64> = Some(156863044);
+const INITIAL_SEED: Option<u64> = Some(813985498);
 
 //noinspection RsConstantConditionIf
 fn main() {

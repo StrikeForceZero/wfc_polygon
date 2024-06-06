@@ -5,6 +5,7 @@ use rand::prelude::StdRng;
 
 use wfc_polygon::wfc::WrapMode;
 
+use crate::AnimateMode;
 use crate::color_wrapper::ColorWrapper;
 use crate::component::{HexData, HexInvalidPossibilities, HexPos, HexPossibilities};
 
@@ -29,7 +30,7 @@ pub struct GridSize(pub UVec2);
 pub struct HexTextEnabled(pub bool);
 
 #[derive(Debug, Default, Reflect, Resource)]
-pub struct WfcAnimate(pub bool);
+pub struct WfcAnimate(pub AnimateMode);
 
 #[derive(Debug, Default, Resource)]
 pub struct WfcWrapMode(pub Option<WrapMode>);
