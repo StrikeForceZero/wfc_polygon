@@ -1,6 +1,7 @@
 use std::cmp::Reverse;
 use std::collections::{BinaryHeap, HashMap, HashSet, VecDeque};
 use std::fmt::Debug;
+use std::mem;
 
 use rand::prelude::*;
 use rand::thread_rng;
@@ -111,6 +112,17 @@ mod tests {
     }
 }
 
+#[derive(Serialize, Deserialize)]
+struct WfcState<T>
+where
+    T: Tile<T>,
+{
+    set_index: usize,
+    possibilities: Vec<HashSet<T>>,
+    propagation_queue: VecDeque<(usize, usize)>,
+    entropy_queue: BinaryHeap<Reverse<(usize, usize, usize)>>,
+}
+
 #[derive(Default, Serialize, Deserialize)]
 pub struct WaveFunctionCollapse<GT, T>
 where
@@ -119,7 +131,7 @@ where
 {
     grid: Grid<GT, T>,
     wrap_mode: Option<WrapMode>,
-    set_history: Vec<usize>,
+    state_history: Vec<WfcState<T>>,
     invalid_possibilities: Vec<HashSet<T>>,
     possibilities: Vec<HashSet<T>>,
     compatibility: CompatibilityMap<GT, T>,
@@ -159,8 +171,8 @@ where
 
         Self {
             grid,
+            state_history: vec![],
             wrap_mode: None,
-            set_history: Vec::new(),
             invalid_possibilities: possibilities.iter().map(|_| HashSet::new()).collect(),
             possibilities,
             compatibility,
@@ -185,31 +197,60 @@ where
         &self.possibilities
     }
 
+    pub fn cached_invalid_possibilities(&self) -> &Vec<HashSet<T>> {
+        &self.invalid_possibilities
+    }
+
+    fn save_state(&mut self, index: usize) {
+        self.state_history.push(WfcState {
+            set_index: index,
+            possibilities: self.possibilities.clone(),
+            propagation_queue: self.propagation_queue.clone(),
+            entropy_queue: self.entropy_queue.clone(),
+        })
+    }
+
+    fn pop_state(&mut self) {
+        let Some(last_state) = self.state_history.pop() else {
+            panic!("exhausted state history");
+        };
+        let (x, y) = self.grid.index_to_xy(last_state.set_index);
+        self.grid.unset(x, y);
+        let _ = mem::replace(&mut self.possibilities, last_state.possibilities);
+        let _ = mem::replace(&mut self.propagation_queue, last_state.propagation_queue);
+        let _ = mem::replace(&mut self.entropy_queue, last_state.entropy_queue);
+    }
+
     fn propagate_constraints(&mut self) {
         while let Some((x, y)) = self.propagation_queue.pop_front() {
-            let Some(tile) = self.grid.get(x, y) else {
-                continue;
-            };
             for (side, neighbor_index_opt) in self.grid.neighbor_indexes(x, y, self.wrap_mode) {
                 if let Some(neighbor_index) = neighbor_index_opt {
-                    if let Some(allowed_tiles) = self.compatibility.get(tile, side) {
-                        let old_len = if self.invalid_possibilities[neighbor_index].is_empty() {
-                            self.possibilities[neighbor_index].len()
+                    let old_len = if self.invalid_possibilities[neighbor_index].is_empty() {
+                        self.possibilities[neighbor_index].len()
+                    } else {
+                        self.possibilities[neighbor_index]
+                            .difference(&self.invalid_possibilities[neighbor_index])
+                            .count()
+                    };
+                    let possibilities = &mut self.possibilities[neighbor_index];
+                    possibilities.retain(|t| {
+                        let passed_allowed_check = if let Some(tile) = self.grid.get(x, y) {
+                            if let Some(allowed_tiles) = self.compatibility.get(tile, side) {
+                                allowed_tiles.contains(t)
+                            } else {
+                                unreachable!("bad compat map?");
+                            }
                         } else {
-                            self.possibilities[neighbor_index]
-                                .difference(&self.invalid_possibilities[neighbor_index])
-                                .count()
+                            // default true
+                            true
                         };
-                        let possibilities = &mut self.possibilities[neighbor_index];
-                        possibilities.retain(|t| {
-                            allowed_tiles.contains(t)
-                                && !self.invalid_possibilities[neighbor_index].contains(t)
-                        });
-                        if possibilities.len() < old_len {
-                            let (nx, ny) = self.grid.index_to_xy(neighbor_index);
-                            self.propagation_queue.push_back((nx, ny));
-                            self.update_entropy(nx, ny);
-                        }
+                        passed_allowed_check
+                            && !self.invalid_possibilities[neighbor_index].contains(t)
+                    });
+                    if possibilities.len() < old_len {
+                        let (nx, ny) = self.grid.index_to_xy(neighbor_index);
+                        self.propagation_queue.push_back((nx, ny));
+                        self.update_entropy(nx, ny);
                     }
                 }
             }
@@ -327,29 +368,18 @@ where
                             unreachable!()
                         };
                         self.grid.set(x, y, tile);
-                        self.set_history.push(index);
                         // set the possibilities to the tile we just set it as
                         self.possibilities[index] = HashSet::from([tile]);
 
                         self.propagation_queue.push_back((x, y));
                         self.propagate_constraints();
+                        self.save_state(index);
                         (Some(tile), (x, y))
                     }
                 }
                 State::Backtrack => {
-                    println!("backtracking");
-                    //self.backtrack()?;
-                    let Some(last_index) = self.set_history.pop() else {
-                        panic!("impossible to finish")
-                    };
-                    let Some(last_set_tile) = self.grid.get_by_index(last_index) else {
-                        panic!("bad state");
-                    };
-                    let (last_x, last_y) = self.grid.index_to_xy(last_index);
-                    self.grid.unset(last_x, last_y);
-                    self.invalid_possibilities[index].insert(last_set_tile);
-                    self.propagation_queue.push_front((last_x, last_y));
-                    self.propagate_constraints();
+                    println!("failed to set ({x},{y}) - backtracking");
+                    self.pop_state();
                     (None, (x, y))
                 }
             };
