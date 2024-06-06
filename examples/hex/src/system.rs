@@ -6,6 +6,7 @@ use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 use bevy::prelude::*;
 use bevy::prelude::KeyCode::{KeyM, KeyP, KeyR, KeyT, KeyY};
 use bevy::sprite::{MaterialMesh2dBundle, Mesh2dHandle};
+use bevy::utils::hashbrown::hash_map::Entry;
 use bevy::utils::HashSet;
 use bevy_inspector_egui::bevy_egui::EguiContexts;
 use bevy_inspector_egui::egui;
@@ -60,6 +61,7 @@ pub fn gen_map(
     mut wfc_step_event_writer: EventWriter<WfcStep>,
     mut grid_cell_set_event_writer: EventWriter<GridCellSet>,
     mut custom_rng: ResMut<CustomRng>,
+    mut posibility_cache: ResMut<HexPossibilitiesCache>,
     wrap_mode: Res<WfcWrapMode>,
     wfc_animate: Res<WfcAnimate>,
     grid_size: Res<GridSize>,
@@ -78,6 +80,39 @@ pub fn gen_map(
         ) {
             if let Some((tile, (x, y))) = inner_wfc.step_with_custom_rng(rng) {
                 // println!("set ({x}, {y}) - {tile:?}");
+                let index = inner_wfc.grid().xy_to_index(x, y);
+                let data = (
+                    HexData(tile.map(|tile| tile.into())),
+                    HexPossibilities(
+                        inner_wfc
+                            .cached_possibilities()
+                            .get(index)
+                            .cloned()
+                            .unwrap_or_default()
+                            .into_iter()
+                            .collect(),
+                    ),
+                    HexInvalidPossibilities(
+                        inner_wfc
+                            .cached_invalid_possibilities()
+                            .get(index)
+                            .cloned()
+                            .unwrap_or_default()
+                            .into_iter()
+                            .collect(),
+                    ),
+                );
+                match posibility_cache
+                    .0
+                    .entry(HexPos(UVec2::new(x as u32, y as u32)))
+                {
+                    Entry::Occupied(mut entry) => {
+                        entry.insert(data);
+                    }
+                    Entry::Vacant(entry) => {
+                        entry.insert(data);
+                    }
+                }
                 grid_cell_set_event_writer.send(GridCellSet {
                     tile,
                     pos: UVec2::from((x as u32, y as u32)),
@@ -539,6 +574,7 @@ pub fn grid_cell_set_event_handler(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut color_material_map: ResMut<ColorMaterialMap>,
+    hex_possibilities_cache: Res<HexPossibilitiesCache>,
     hex_query: Query<(Entity, &HexPos)>,
 ) {
     for gcs in grid_cell_set.read() {
@@ -552,7 +588,13 @@ pub fn grid_cell_set_event_handler(
             create_hex(
                 CreateHexOptions {
                     // we populate these when the grid is done
-                    possibilities: HashSet::new(),
+                    possibilities: hex_possibilities_cache
+                        .0
+                        .get(&HexPos(gcs.pos))
+                        .expect("failed to get possibilities")
+                        .1
+                         .0
+                        .clone(),
                     invalid_possibilities: HashSet::new(),
                     tile: gcs.tile,
                     ix: gcs.pos.x as usize * grid_size.0.x as usize + gcs.pos.y as usize,
