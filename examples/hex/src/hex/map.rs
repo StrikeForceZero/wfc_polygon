@@ -37,6 +37,16 @@ pub struct FlatTopHexagonalSegmentIdMap {
 }
 
 impl FlatTopHexagonalSegmentIdMap {
+    pub fn as_id(&self) -> HexTileId {
+        HexTileId((
+            self.top,
+            self.top_right,
+            self.bottom_right,
+            self.bottom,
+            self.bottom_left,
+            self.top_left,
+        ))
+    }
     pub fn get_side_from_index(&self, index: usize) -> Option<HexSegmentId> {
         Some(match index {
             0 => self.top,

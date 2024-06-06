@@ -27,3 +27,6 @@ pub struct WfcStep;
 
 #[derive(Clone, Event)]
 pub struct ChangeHexMode(pub HexMode);
+
+#[derive(Clone, Event)]
+pub struct GridCellUpdate(pub UVec2);

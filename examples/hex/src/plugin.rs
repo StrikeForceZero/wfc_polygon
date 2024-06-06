@@ -10,7 +10,9 @@ use crate::component::{
     HexData, HexInvalid, HexInvalidPossibilities, HexIx, HexPos, HexPossibilities, HexText,
     InnerHex,
 };
-use crate::event::{ChangeHexMode, ClearCache, GridCellSet, MapGenerated, RegenerateMap, WfcStep};
+use crate::event::{
+    ChangeHexMode, ClearCache, GridCellSet, GridCellUpdate, MapGenerated, RegenerateMap, WfcStep,
+};
 use crate::resource::{
     ColorMaterialMap, CustomRng, GenMapSystemId, GridSize, HexPossibilitiesCache, HexScale,
     HexTextMode, Seed, WfcAnimate, WfcWrapMode,
@@ -60,11 +62,12 @@ impl Plugin for SubPlugin {
             .add_event::<ChangeHexMode>()
             .add_event::<GridCellSet>()
             .add_event::<WfcStep>()
+            .add_event::<GridCellUpdate>()
             .add_systems(Startup, system::setup)
             .add_systems(Update,
                          (
                              system::change_hex_mode_event_handler,
-                             system::ui,
+                             // system::ui,
                              system::cache_update_on_hex_selected_handler,
                              system::clear_cache_event_handler,
                              system::map_generated_event_handler,
@@ -73,8 +76,11 @@ impl Plugin for SubPlugin {
             .add_systems(Update, system::input_handler)
             .add_systems(Update, system::regen_map_event_handler)
             .add_systems(Update, system::wfc_step_handler)
-            .add_systems(Update, system::grid_cell_set_event_handler)
-            .add_systems(Update, system::on_hex_text_added)
+            .add_systems(Update, (
+                system::on_cell_update,
+                system::grid_cell_set_event_handler,
+                system::on_hex_text_added,
+            ).chain())
             .add_systems(PostUpdate, system::invalid_hex_handler)
         /* rustfmt next line semi-colon */
         ;

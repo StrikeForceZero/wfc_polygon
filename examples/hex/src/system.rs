@@ -6,8 +6,8 @@ use bevy::input::mouse::{MouseScrollUnit, MouseWheel};
 use bevy::prelude::*;
 use bevy::prelude::KeyCode::{KeyM, KeyP, KeyR, KeyT, KeyY};
 use bevy::sprite::{MaterialMesh2dBundle, Mesh2dHandle};
+use bevy::utils::{HashMap, HashSet};
 use bevy::utils::hashbrown::hash_map::Entry;
-use bevy::utils::HashSet;
 use bevy_inspector_egui::bevy_egui::EguiContexts;
 use bevy_inspector_egui::egui;
 use bevy_mod_picking::highlight::InitialHighlight;
@@ -23,7 +23,9 @@ use wfc_polygon::wfc::{WaveFunctionCollapse, WrapMode};
 use crate::{AnimateMode, HEX_MODE, HexMode, TextMode};
 use crate::color_wrapper::ColorWrapper;
 use crate::component::*;
-use crate::event::{ChangeHexMode, ClearCache, GridCellSet, MapGenerated, RegenerateMap, WfcStep};
+use crate::event::{
+    ChangeHexMode, ClearCache, GridCellSet, GridCellUpdate, MapGenerated, RegenerateMap, WfcStep,
+};
 use crate::hex::map::FlatTopHexagonalSegmentIdMap;
 use crate::hex::tile_id::HexTileId;
 use crate::resource::*;
@@ -65,6 +67,7 @@ pub fn gen_map(
     wrap_mode: Res<WfcWrapMode>,
     wfc_animate: Res<WfcAnimate>,
     grid_size: Res<GridSize>,
+    mut grid_cell_update: EventWriter<GridCellUpdate>,
 ) {
     let rng = if let Some(custom_rng) = custom_rng.0.as_mut() {
         custom_rng
@@ -80,38 +83,40 @@ pub fn gen_map(
         ) {
             if let Some((tile, (x, y))) = inner_wfc.step_with_custom_rng(rng) {
                 // println!("set ({x}, {y}) - {tile:?}");
-                let index = inner_wfc.grid().xy_to_index(x, y);
-                let data = (
-                    HexData(tile.map(|tile| tile.into())),
-                    HexPossibilities(
-                        inner_wfc
-                            .cached_possibilities()
-                            .get(index)
-                            .cloned()
-                            .unwrap_or_default()
-                            .into_iter()
-                            .collect(),
-                    ),
-                    HexInvalidPossibilities(
-                        inner_wfc
-                            .cached_invalid_possibilities()
-                            .get(index)
-                            .cloned()
-                            .unwrap_or_default()
-                            .into_iter()
-                            .collect(),
-                    ),
-                );
-                match posibility_cache
-                    .0
-                    .entry(HexPos(UVec2::new(x as u32, y as u32)))
-                {
-                    Entry::Occupied(mut entry) => {
-                        entry.insert(data);
+                // update all each step for easier visualization
+                for (ix, tile) in inner_wfc.grid().cells().iter().enumerate() {
+                    let (x, y) = inner_wfc.grid().index_to_xy(ix);
+                    let data = (
+                        HexData(tile.map(|tile| tile.into())),
+                        HexPossibilities(
+                            inner_wfc
+                                .cached_possibilities()
+                                .get(ix)
+                                .cloned()
+                                .unwrap_or_default()
+                                .into_iter()
+                                .collect(),
+                        ),
+                        HexInvalidPossibilities(
+                            inner_wfc
+                                .cached_invalid_possibilities()
+                                .get(ix)
+                                .cloned()
+                                .unwrap_or_default()
+                                .into_iter()
+                                .collect(),
+                        ),
+                    );
+                    let pos = UVec2::new(x as u32, y as u32);
+                    match posibility_cache.0.entry(HexPos(pos)) {
+                        Entry::Occupied(mut entry) => {
+                            entry.insert(data);
+                        }
+                        Entry::Vacant(entry) => {
+                            entry.insert(data);
+                        }
                     }
-                    Entry::Vacant(entry) => {
-                        entry.insert(data);
-                    }
+                    grid_cell_update.send(GridCellUpdate(pos));
                 }
                 grid_cell_set_event_writer.send(GridCellSet {
                     tile,
@@ -575,40 +580,36 @@ pub fn grid_cell_set_event_handler(
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut color_material_map: ResMut<ColorMaterialMap>,
     hex_possibilities_cache: Res<HexPossibilitiesCache>,
-    hex_query: Query<(Entity, &HexPos)>,
+    hex_query: Query<(&HexPos, Entity)>,
 ) {
+    let pos_entity_map = hex_query.iter().collect::<HashMap<_, _>>();
     for gcs in grid_cell_set.read() {
-        if gcs.tile.is_none() {
-            for (entity, pos) in hex_query.iter() {
-                if pos.0 == gcs.pos {
-                    commands.entity(entity).despawn_recursive();
-                }
-            }
-        } else {
-            create_hex(
-                CreateHexOptions {
-                    // we populate these when the grid is done
-                    possibilities: hex_possibilities_cache
-                        .0
-                        .get(&HexPos(gcs.pos))
-                        .expect("failed to get possibilities")
-                        .1
-                         .0
-                        .clone(),
-                    invalid_possibilities: HashSet::new(),
-                    tile: gcs.tile,
-                    ix: gcs.pos.x as usize * grid_size.0.x as usize + gcs.pos.y as usize,
-                    pos: gcs.pos,
-                    is_invalid: false,
-                },
-                &hex_scale,
-                &mut commands,
-                &mut meshes,
-                &mut materials,
-                &mut color_material_map,
-                &hex_text_mode,
-            );
+        if let Some(&entity) = pos_entity_map.get(&HexPos(gcs.pos)) {
+            commands.entity(entity).despawn_recursive();
         }
+        create_hex(
+            CreateHexOptions {
+                // we populate these when the grid is done
+                possibilities: hex_possibilities_cache
+                    .0
+                    .get(&HexPos(gcs.pos))
+                    .expect("failed to get possibilities")
+                    .1
+                     .0
+                    .clone(),
+                invalid_possibilities: HashSet::new(),
+                tile: gcs.tile,
+                ix: gcs.pos.x as usize * grid_size.0.x as usize + gcs.pos.y as usize,
+                pos: gcs.pos,
+                is_invalid: false,
+            },
+            &hex_scale,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut color_material_map,
+            &hex_text_mode,
+        );
     }
 }
 
@@ -708,5 +709,68 @@ pub fn on_hex_text_added(
             visibility,
             ..default()
         });
+    }
+}
+
+pub fn on_cell_update(
+    mut event_reader: EventReader<GridCellUpdate>,
+    grid_size: Res<GridSize>,
+    hex_scale: Res<HexScale>,
+    hex_text_mode: Res<HexTextMode>,
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<ColorMaterial>>,
+    mut color_material_map: ResMut<ColorMaterialMap>,
+    hex_possibilities_cache: Res<HexPossibilitiesCache>,
+    hex_query: Query<(&HexPos, (Entity, &Children))>,
+    hex_text_query: Query<&HexText>,
+) {
+    let pos_entity_map = hex_query.iter().collect::<HashMap<_, _>>();
+    'outer: for &GridCellUpdate(pos) in event_reader.read() {
+        let Some((data, possibilities, invalids)) = hex_possibilities_cache.0.get(&HexPos(pos))
+        else {
+            panic!("bad event");
+        };
+        if let Some(&(entity, children)) = pos_entity_map.get(&HexPos(pos)) {
+            for &child_entity in children {
+                if hex_text_query.get(child_entity).is_err() {
+                    continue;
+                }
+                if let Some((data, ..)) = hex_possibilities_cache.0.get(&HexPos(pos)) {
+                    if data.0.is_none() {
+                        // TODO: this is not ideal
+                        if matches!(hex_text_mode.0, Some(TextMode::PossibilityCount)) {
+                            commands
+                                .entity(child_entity)
+                                .insert(HexText(possibilities.0.len().to_string()));
+                        }
+                    }
+                }
+            }
+            continue 'outer;
+        }
+        create_hex(
+            CreateHexOptions {
+                // we populate these when the grid is done
+                possibilities: hex_possibilities_cache
+                    .0
+                    .get(&HexPos(pos))
+                    .expect("failed to get possibilities")
+                    .1
+                     .0
+                    .clone(),
+                invalid_possibilities: HashSet::new(),
+                tile: data.0.map(|seg| seg.as_id()),
+                ix: pos.x as usize * grid_size.0.x as usize + pos.y as usize,
+                pos,
+                is_invalid: false,
+            },
+            &hex_scale,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut color_material_map,
+            &hex_text_mode,
+        );
     }
 }
