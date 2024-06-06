@@ -6,7 +6,9 @@ use rand::SeedableRng;
 use wfc_polygon::wfc::WrapMode;
 
 use crate::{INITIAL_SEED, system};
-use crate::component::{HexData, HexInvalid, HexPos, HexPossibilities, HexText, InnerHex};
+use crate::component::{
+    HexData, HexInvalid, HexInvalidPossibilities, HexPos, HexPossibilities, HexText, InnerHex,
+};
 use crate::event::{ChangeHexMode, ClearCache, GridCellSet, MapGenerated, RegenerateMap, WfcStep};
 use crate::resource::{
     ColorMaterialMap, CustomRng, GenMapSystemId, GridSize, HexPossibilitiesCache, HexScale,
@@ -46,6 +48,7 @@ impl Plugin for SubPlugin {
             .register_type::<HexText>()
             .register_type::<HexPossibilitiesCache>()
             .register_type::<WfcAnimate>()
+            .register_type::<HexInvalidPossibilities>()
             .init_resource::<ColorMaterialMap>()
             .init_resource::<HexPossibilitiesCache>()
             .add_event::<RegenerateMap>()
@@ -58,7 +61,7 @@ impl Plugin for SubPlugin {
             .add_systems(Update,
                          (
                              system::change_hex_mode_event_handler,
-                             // system::ui,
+                             system::ui,
                              system::cache_update_on_hex_selected_handler,
                              system::clear_cache_event_handler,
                              system::map_generated_event_handler,

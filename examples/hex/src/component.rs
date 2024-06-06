@@ -17,6 +17,9 @@ pub struct HexData(pub Option<FlatTopHexagonalSegmentIdMap>);
 #[derive(Debug, Clone, Reflect, Component)]
 pub struct HexPossibilities(pub HashSet<HexTileId>);
 
+#[derive(Debug, Clone, Reflect, Component)]
+pub struct HexInvalidPossibilities(pub HashSet<HexTileId>);
+
 #[derive(Debug, Copy, Clone, Component, Reflect)]
 pub struct InnerHex;
 

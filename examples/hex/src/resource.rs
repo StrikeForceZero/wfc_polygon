@@ -6,13 +6,15 @@ use rand::prelude::StdRng;
 use wfc_polygon::wfc::WrapMode;
 
 use crate::color_wrapper::ColorWrapper;
-use crate::component::{HexData, HexPos, HexPossibilities};
+use crate::component::{HexData, HexInvalidPossibilities, HexPos, HexPossibilities};
 
 #[derive(Debug, Resource)]
 pub struct GenMapSystemId(pub SystemId);
 
 #[derive(Debug, Default, Reflect, Resource)]
-pub struct HexPossibilitiesCache(pub HashMap<HexPos, (HexData, HexPossibilities)>);
+pub struct HexPossibilitiesCache(
+    pub HashMap<HexPos, (HexData, HexPossibilities, HexInvalidPossibilities)>,
+);
 
 #[derive(Debug, Default, Reflect, Resource)]
 pub struct HexScale(pub f32);
