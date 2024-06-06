@@ -72,6 +72,7 @@ impl Plugin for SubPlugin {
             .add_systems(Update, system::regen_map_event_handler)
             .add_systems(Update, system::wfc_step_handler)
             .add_systems(Update, system::grid_cell_set_event_handler)
+            .add_systems(Update, system::on_hex_text_added)
             .add_systems(PostUpdate, system::invalid_hex_handler)
         /* rustfmt next line semi-colon */
         ;

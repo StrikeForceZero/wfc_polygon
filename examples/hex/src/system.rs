@@ -447,7 +447,6 @@ fn create_hex(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<ColorMaterial>>,
     color_material_map: &mut ResMut<ColorMaterialMap>,
-    hex_text_enabled: &Res<HexTextEnabled>,
 ) {
     let possibilities = create_hex_options.possibilities;
     let invalid_possibilities = create_hex_options.invalid_possibilities;
@@ -461,12 +460,6 @@ fn create_hex(
     let translate_y = y as f32 * 1.732;
     let mut position = Vec3::new(translate_x, translate_y, 0.0) * scale
         - Vec2::new(16.0, 20.0).extend(0.0) * scale;
-
-    let visibility = if hex_text_enabled.0 {
-        Visibility::Inherited
-    } else {
-        Visibility::Hidden
-    };
 
     if x % 2 == 0 {
         position.y += 0.9 * scale;
@@ -504,19 +497,7 @@ fn create_hex(
                     PickableBundle::default(),
                 ));
             }
-            children.spawn(Text2dBundle {
-                text: Text::from_section(
-                    ix.to_string(),
-                    TextStyle {
-                        font_size: 15.0,
-                        color: Color::PURPLE,
-                        ..default()
-                    },
-                ),
-                transform: Transform::from_translation(Vec2::default().extend(10.0)),
-                visibility,
-                ..default()
-            });
+            children.spawn(HexText(ix.to_string()));
         })
         .id();
     if create_hex_options.is_invalid {
@@ -532,7 +513,6 @@ pub fn grid_cell_set_event_handler(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut color_material_map: ResMut<ColorMaterialMap>,
-    hex_text_enabled: Res<HexTextEnabled>,
     hex_query: Query<(Entity, &HexPos)>,
 ) {
     for gcs in grid_cell_set.read() {
@@ -558,7 +538,6 @@ pub fn grid_cell_set_event_handler(
                 &mut meshes,
                 &mut materials,
                 &mut color_material_map,
-                &hex_text_enabled,
             );
         }
     }
@@ -572,7 +551,6 @@ pub fn map_generated_event_handler(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut color_material_map: ResMut<ColorMaterialMap>,
-    hex_text_enabled: Res<HexTextEnabled>,
 ) {
     if let Some(MapGenerated(wfc)) = events.read().last() {
         // despawn last map
@@ -619,7 +597,6 @@ pub fn map_generated_event_handler(
                 &mut meshes,
                 &mut materials,
                 &mut color_material_map,
-                &hex_text_enabled,
             );
         }
     }
@@ -633,5 +610,32 @@ pub fn change_hex_mode_event_handler(mut events: EventReader<ChangeHexMode>) {
             return;
         }
         *HEX_MODE.write().unwrap() = new_hex_mode;
+    }
+}
+
+pub fn on_hex_text_added(
+    mut commands: Commands,
+    hex_text: Query<(Entity, &HexText), Added<HexText>>,
+    hex_text_enabled: Res<HexTextEnabled>,
+) {
+    let visibility = if hex_text_enabled.0 {
+        Visibility::Inherited
+    } else {
+        Visibility::Hidden
+    };
+    for (entity, HexText(text)) in hex_text.iter() {
+        commands.entity(entity).insert(Text2dBundle {
+            text: Text::from_section(
+                text,
+                TextStyle {
+                    font_size: 15.0,
+                    color: Color::PURPLE,
+                    ..default()
+                },
+            ),
+            transform: Transform::from_translation(Vec2::default().extend(10.0)),
+            visibility,
+            ..default()
+        });
     }
 }
