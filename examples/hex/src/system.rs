@@ -209,8 +209,9 @@ pub fn input_handler(
                 .send(ChangeHexMode(new_hex_mode));
         }
     }
-    if keyboard_input.pressed(KeyCode::Space)
-        && time.elapsed_seconds() - state.time_since_last_step > 0.25
+    if keyboard_input.just_pressed(KeyCode::Space)
+        || keyboard_input.pressed(KeyCode::Space)
+            && time.elapsed_seconds() - state.time_since_last_step > 0.25
     {
         state.time_since_last_step = time.elapsed_seconds();
         println!("stepping");
