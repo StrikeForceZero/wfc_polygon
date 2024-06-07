@@ -103,15 +103,6 @@ pub fn gen_map(
                                 .into_iter()
                                 .collect(),
                         ),
-                        HexInvalidPossibilities(
-                            inner_wfc
-                                .cached_invalid_possibilities()
-                                .get(ix)
-                                .cloned()
-                                .unwrap_or_default()
-                                .into_iter()
-                                .collect(),
-                        ),
                     );
                     let pos = UVec2::new(x as u32, y as u32);
                     match posibility_cache.0.entry(HexPos(pos)) {
@@ -241,15 +232,7 @@ pub fn input_handler(
     mut custom_rng: ResMut<CustomRng>,
     mut events: InputHandlerEventParams,
     hex_scale: Res<HexScale>,
-    hex_query: Query<
-        (
-            Entity,
-            Option<&HexIx>,
-            Option<&HexPossibilities>,
-            Option<&HexInvalidPossibilities>,
-        ),
-        With<HexData>,
-    >,
+    hex_query: Query<(Entity, Option<&HexIx>, Option<&HexPossibilities>), With<HexData>>,
     hex_text_query: Query<(Entity, &Parent), With<HexText>>,
     time: Res<Time>,
 ) {
@@ -296,14 +279,12 @@ pub fn input_handler(
     if keyboard_input.just_pressed(KeyT) {
         hex_text_mode.0 = match hex_text_mode.0 {
             None => Some(TextMode::PossibilityCount),
-            Some(TextMode::PossibilityCount) => Some(TextMode::InvalidCount),
-            Some(TextMode::InvalidCount) => Some(TextMode::Index),
+            Some(TextMode::PossibilityCount) => Some(TextMode::Index),
             Some(TextMode::Index) => None,
         };
         println!("changing text mode to {:?}", hex_text_mode.0);
         for (entity, parent) in hex_text_query.iter() {
-            let Ok((_, ix_opt, possibilities_opt, invalid_opts)) = hex_query.get(parent.get())
-            else {
+            let Ok((_, ix_opt, possibilities_opt)) = hex_query.get(parent.get()) else {
                 continue;
             };
             let (visibility, text) = match hex_text_mode.0 {
@@ -311,12 +292,6 @@ pub fn input_handler(
                 Some(TextMode::PossibilityCount) => (
                     Visibility::Inherited,
                     possibilities_opt
-                        .map(|p| p.0.len().to_string())
-                        .unwrap_or_default(),
-                ),
-                Some(TextMode::InvalidCount) => (
-                    Visibility::Inherited,
-                    invalid_opts
                         .map(|p| p.0.len().to_string())
                         .unwrap_or_default(),
                 ),
@@ -378,20 +353,12 @@ pub fn input_handler(
 pub fn cache_update_on_hex_selected_handler(
     mut commands: Commands,
     mut hex_possibilities_data: ResMut<HexSelectedData>,
-    hex_query: Query<(
-        &HexPos,
-        &HexData,
-        &HexPossibilities,
-        &HexInvalidPossibilities,
-        &Children,
-    )>,
+    hex_query: Query<(&HexPos, &HexData, &HexPossibilities, &Children)>,
     pick_query: Query<(&Parent, Ref<PickSelection>), (Changed<PickSelection>, With<InnerHex>)>,
     child_query: Query<Option<Ref<PickSelection>>>,
 ) {
     for (parent, selection) in pick_query.iter() {
-        let Ok((pos, data, possibilities, invalid_posibilities, children)) =
-            hex_query.get(parent.get())
-        else {
+        let Ok((pos, data, possibilities, children)) = hex_query.get(parent.get()) else {
             continue;
         };
         if !selection.is_changed() {
@@ -416,13 +383,10 @@ pub fn cache_update_on_hex_selected_handler(
             if !child_inserted {
                 child_inserted = true;
                 println!("updated cache for {pos:?}");
-                hex_possibilities_data.0.entry(*pos).or_insert_with(|| {
-                    (
-                        data.clone(),
-                        possibilities.clone(),
-                        invalid_posibilities.clone(),
-                    )
-                });
+                hex_possibilities_data
+                    .0
+                    .entry(*pos)
+                    .or_insert_with(|| (data.clone(), possibilities.clone()));
             }
         }
     }
@@ -477,10 +441,10 @@ pub fn ui(mut egui_contexts: EguiContexts, hex_possibility_data: Res<HexSelected
             .auto_shrink([false; 2])
             .show(ui, |ui| {
                 ui.heading("Click tile to view possibilities");
-                for (pos, (data, possibilities, invalid)) in hex_possibility_data.0.iter() {
+                for (pos, (data, possibilities)) in hex_possibility_data.0.iter() {
                     ui.add(egui::Label::new(format!(
-                        "pos: {}\ndata: {data:#?}\npossibilities:{:#?}\ninvalids:{:#?}",
-                        pos.0, possibilities.0, invalid.0
+                        "pos: {}\ndata: {data:#?}\npossibilities:{:#?}",
+                        pos.0, possibilities.0
                     )));
                 }
             });
@@ -522,7 +486,6 @@ pub struct CreateHexOptions {
     ix: usize,
     pos: UVec2,
     possibilities: HashSet<HexTileId>,
-    invalid_possibilities: HashSet<HexTileId>,
     is_invalid: bool,
 }
 
@@ -537,7 +500,6 @@ fn create_hex(
     hex_text_mode: &Res<HexTextMode>,
 ) {
     let possibilities = create_hex_options.possibilities;
-    let invalid_possibilities = create_hex_options.invalid_possibilities;
     let scale = hex_scale.0;
     let tile = &create_hex_options.tile.clone();
     let pos = create_hex_options.pos;
@@ -570,7 +532,6 @@ fn create_hex(
     let hex_text = match hex_text_mode.0 {
         None => String::new(),
         Some(TextMode::Index) => ix.to_string(),
-        Some(TextMode::InvalidCount) => invalid_possibilities.len().to_string(),
         Some(TextMode::PossibilityCount) => possibilities.len().to_string(),
     };
     let id = commands
@@ -579,7 +540,6 @@ fn create_hex(
             HexIx(ix),
             HexPos(UVec2::new(x, y)),
             HexPossibilities(possibilities),
-            HexInvalidPossibilities(invalid_possibilities),
             SpatialBundle::from_transform(Transform::from_translation(position)),
         ))
         .with_children(|children| {
@@ -645,13 +605,6 @@ pub fn grid_cell_set_event_handler(
                     .1
                      .0
                     .clone(),
-                invalid_possibilities: hex_possibilities_cache
-                    .0
-                    .get(&HexPos(gcs.pos))
-                    .expect("failed to get possibilities")
-                    .2
-                     .0
-                    .clone(),
                 tile: gcs.tile,
                 ix: gcs.pos.y as usize * grid_size.0.x as usize + gcs.pos.x as usize,
                 pos: gcs.pos,
@@ -697,15 +650,11 @@ pub fn map_generated_event_handler(
             HashSet::new()
         };
 
-        for (ix, (cell, (possibilities, invalid_possibilities))) in wfc
+        for (ix, (cell, (possibilities))) in wfc
             .grid()
             .cells()
             .iter()
-            .zip(
-                wfc.cached_possibilities()
-                    .iter()
-                    .zip(wfc.cached_invalid_possibilities().iter()),
-            )
+            .zip(wfc.cached_possibilities())
             .enumerate()
         {
             let (x, y) = wfc.grid().index_to_xy(ix);
@@ -713,7 +662,6 @@ pub fn map_generated_event_handler(
             create_hex(
                 CreateHexOptions {
                     possibilities: possibilities.iter().cloned().collect(),
-                    invalid_possibilities: invalid_possibilities.iter().cloned().collect(),
                     tile: *cell,
                     ix,
                     pos: UVec2::new(x as u32, y as u32),
@@ -785,8 +733,7 @@ pub fn on_cell_update(
 ) {
     let pos_entity_map = hex_query.iter().collect::<HashMap<_, _>>();
     'outer: for &GridCellUpdate(pos) in event_reader.read() {
-        let Some((data, possibilities, invalids)) = hex_possibilities_cache.0.get(&HexPos(pos))
-        else {
+        let Some((data, possibilities)) = hex_possibilities_cache.0.get(&HexPos(pos)) else {
             panic!("bad event");
         };
         if let Some(&(entity, children)) = pos_entity_map.get(&HexPos(pos)) {
@@ -816,13 +763,6 @@ pub fn on_cell_update(
                     .get(&HexPos(pos))
                     .expect("failed to get possibilities")
                     .1
-                     .0
-                    .clone(),
-                invalid_possibilities: hex_possibilities_cache
-                    .0
-                    .get(&HexPos(pos))
-                    .expect("failed to get possibilities")
-                    .2
                      .0
                     .clone(),
                 tile: data.0.map(|seg| seg.as_id()),

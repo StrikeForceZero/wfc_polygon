@@ -121,17 +121,6 @@ enum Priority {
     Normal,
 }
 
-#[derive(Serialize, Deserialize)]
-struct WfcState<T>
-where
-    T: Tile<T>,
-{
-    set_index: usize,
-    possibilities: Vec<HashSet<T>>,
-    propagation_queue: VecDeque<(usize, usize)>,
-    entropy_queue: BinaryHeap<Reverse<(Priority, usize, usize, usize)>>,
-}
-
 #[derive(Default, Serialize, Deserialize)]
 pub struct WaveFunctionCollapse<GT, T>
 where
@@ -140,7 +129,6 @@ where
 {
     grid: Grid<GT, T>,
     wrap_mode: Option<WrapMode>,
-    invalid_possibilities: Vec<HashSet<T>>,
     possibilities: Vec<HashSet<T>>,
     compatibility: CompatibilityMap<GT, T>,
     propagation_queue: VecDeque<(usize, usize)>,
@@ -194,7 +182,6 @@ where
         Self {
             grid,
             wrap_mode: None,
-            invalid_possibilities: possibilities.iter().map(|_| HashSet::new()).collect(),
             possibilities,
             compatibility,
             propagation_queue,
@@ -218,13 +205,8 @@ where
         &self.possibilities
     }
 
-    pub fn cached_invalid_possibilities(&self) -> &Vec<HashSet<T>> {
-        &self.invalid_possibilities
-    }
-
     fn refresh_constraints(&mut self, index: usize) {
         self.possibilities[index] = T::all().into_iter().collect();
-        self.possibilities[index].retain(|t| !self.invalid_possibilities[index].contains(t));
         let (x, y) = self.grid.index_to_xy(index);
         for (side, nix) in self.grid.neighbor_indexes(x, y, self.wrap_mode) {
             let Some(nix) = nix else {
@@ -244,20 +226,14 @@ where
         while let Some((x, y)) = self.propagation_queue.pop_front() {
             for (side, neighbor_index_opt) in self.grid.neighbor_indexes(x, y, self.wrap_mode) {
                 if let Some(neighbor_index) = neighbor_index_opt {
-                    let old_len = if self.invalid_possibilities[neighbor_index].is_empty() {
-                        self.possibilities[neighbor_index].len()
-                    } else {
-                        self.possibilities[neighbor_index]
-                            .difference(&self.invalid_possibilities[neighbor_index])
-                            .count()
-                    };
+                    let old_len = self.possibilities[neighbor_index].len();
                     self.refresh_constraints(neighbor_index);
                     let possibilities = &mut self.possibilities[neighbor_index];
                     if let Some(n_tile) = self.grid.get_by_index(neighbor_index) {
                         possibilities.retain(|&t| t == n_tile);
                     } else {
                         possibilities.retain(|t| {
-                            let passed_allowed_check = if let Some(tile) = self.grid.get(x, y) {
+                            if let Some(tile) = self.grid.get(x, y) {
                                 if let Some(allowed_tiles) = self.compatibility.get(tile, side) {
                                     allowed_tiles.contains(t)
                                 } else {
@@ -266,9 +242,7 @@ where
                             } else {
                                 // default true
                                 true
-                            };
-                            passed_allowed_check
-                                && !self.invalid_possibilities[neighbor_index].contains(t)
+                            }
                         });
                     }
                     if possibilities.len() < old_len {
@@ -283,13 +257,7 @@ where
 
     fn update_entropy(&mut self, x: usize, y: usize) {
         let index = self.grid.xy_to_index(x, y);
-        let entropy = if self.invalid_possibilities[index].is_empty() {
-            self.possibilities[index].len()
-        } else {
-            self.possibilities[index]
-                .difference(&self.invalid_possibilities[index])
-                .count()
-        };
+        let entropy = self.possibilities[index].len();
         self.entropy_queue
             .push(Reverse((Priority::Normal, entropy, x, y)));
     }
@@ -315,18 +283,12 @@ where
                 // println!("0 possibilities for ({x},{y}) [index]");
                 State::PatchSurroundings
             } else {
-                let mut choices = self.possibilities[index]
-                    .difference(&self.invalid_possibilities[index])
-                    .collect::<Vec<_>>();
+                let mut choices = self.possibilities[index].iter().collect::<Vec<_>>();
                 // sort required for deterministic generation
                 choices.sort();
                 if choices.is_empty() {
                     // TODO: debug!
                     // println!("0 choices for ({x},{y}) [index]");
-                    // TODO: un-needed?
-                    if self.invalid_possibilities[index].len() == T::all().len() {
-                        panic!("failed to collapse [{index}] ({x},{y}) has marked every tile as invalid");
-                    }
                     State::PatchSurroundings
                 } else {
                     State::SetAny(choices)
