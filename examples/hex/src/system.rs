@@ -88,10 +88,6 @@ pub fn gen_map(
             AnimateMode::SingleAuto | AnimateMode::SingleManual
         ) {
             if let Some((tile, (x, y), unsets)) = inner_wfc.step_with_custom_rng(rng) {
-                // debug
-                if (x, y) == (11, 36) {
-                    wfc_animate.0 = AnimateMode::SingleManual;
-                }
                 // println!("set ({x}, {y}) - {tile:?}");
                 // update all each step for easier visualization
                 for (ix, tile) in inner_wfc.grid().cells().iter().enumerate() {

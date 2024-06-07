@@ -140,12 +140,9 @@ where
 {
     grid: Grid<GT, T>,
     wrap_mode: Option<WrapMode>,
-    state_history: Vec<WfcState<T>>,
     invalid_possibilities: Vec<HashSet<T>>,
     possibilities: Vec<HashSet<T>>,
     compatibility: CompatibilityMap<GT, T>,
-    last_invalid: Option<usize>,
-    backtrack_targets: HashSet<usize>,
     propagation_queue: VecDeque<(usize, usize)>,
     entropy_queue: BinaryHeap<Reverse<(Priority, usize, usize, usize)>>,
 }
@@ -187,13 +184,10 @@ where
 
         Self {
             grid,
-            state_history: vec![],
             wrap_mode: None,
             invalid_possibilities: possibilities.iter().map(|_| HashSet::new()).collect(),
             possibilities,
             compatibility,
-            last_invalid: None,
-            backtrack_targets: HashSet::new(),
             propagation_queue,
             entropy_queue,
         }
@@ -217,82 +211,6 @@ where
 
     pub fn cached_invalid_possibilities(&self) -> &Vec<HashSet<T>> {
         &self.invalid_possibilities
-    }
-
-    fn save_state(&mut self, index: usize) {
-        self.state_history.push(WfcState {
-            set_index: index,
-            possibilities: self.possibilities.clone(),
-            propagation_queue: self.propagation_queue.clone(),
-            entropy_queue: self.entropy_queue.clone(),
-        })
-    }
-
-    fn pop_state(&mut self) -> usize {
-        let Some(last_state) = self.state_history.pop() else {
-            panic!("exhausted state history");
-        };
-
-        let (x, y) = self.grid.index_to_xy(last_state.set_index);
-
-        // Add the previously set tile to invalid possibilities
-        let Some(tile) = self.grid.get_by_index(last_state.set_index) else {
-            panic!("bad state");
-        };
-        /*if let Some(last_invalid) = self.last_invalid {
-            if last_state.set_index != last_invalid {
-                println!(
-                    "unbanning [{last_invalid}]: {:?}",
-                    self.invalid_possibilities[last_invalid]
-                );
-                println!(
-                    "possibilities [{last_invalid}]: {:?}",
-                    self.possibilities[last_invalid]
-                );
-
-                self.invalid_possibilities[last_invalid].clear();
-                self.refresh_constraints(last_invalid);
-            }
-        }*/
-        self.last_invalid = Some(last_state.set_index);
-        self.invalid_possibilities[last_state.set_index].insert(tile);
-
-        // Unset the grid cell
-        self.grid.unset(x, y);
-
-        // Restore the state
-        self.possibilities = last_state.possibilities;
-        self.propagation_queue = last_state.propagation_queue;
-        self.entropy_queue = last_state.entropy_queue;
-
-        // Remove invalid possibilities from the restored possibilities
-        self.possibilities[last_state.set_index]
-            .retain(|t| !self.invalid_possibilities[last_state.set_index].contains(t));
-
-        println!(
-            "banning [{}]: {:?}",
-            last_state.set_index, self.invalid_possibilities[last_state.set_index]
-        );
-        println!(
-            "possibilities [{}]: {:?}",
-            last_state.set_index, self.possibilities[last_state.set_index]
-        );
-
-        // Push the current cell to the front of the propagation queue
-        self.propagation_queue.push_front((x, y));
-
-        // Re-propagate constraints after restoring the state
-        self.propagate_constraints();
-
-        // Ensure the current cell is in the entropy queue for reselection
-        self.entropy_queue.push(Reverse((
-            Priority::Next,
-            self.possibilities[last_state.set_index].len(),
-            x,
-            y,
-        )));
-
-        last_state.set_index
     }
 
     fn refresh_constraints(&mut self, index: usize) {
@@ -344,10 +262,7 @@ where
                                 && !self.invalid_possibilities[neighbor_index].contains(t)
                         });
                     }
-                    if possibilities.len() != old_len {
-                        if possibilities.is_empty() {
-                            self.backtrack_targets.insert(neighbor_index);
-                        }
+                    if possibilities.len() < old_len {
                         let (nx, ny) = self.grid.index_to_xy(neighbor_index);
                         self.propagation_queue.push_back((nx, ny));
                         self.update_entropy(nx, ny);
@@ -370,6 +285,11 @@ where
             .push(Reverse((Priority::Normal, entropy, x, y)));
     }
 
+    fn update_entropy_by_index(&mut self, index: usize) {
+        let (x, y) = self.grid.index_to_xy(index);
+        self.update_entropy(x, y);
+    }
+
     fn _step(
         &mut self,
         rng: &mut impl Rng,
@@ -377,13 +297,14 @@ where
         #[derive(Debug)]
         enum State<T> {
             SetAny(Vec<T>),
-            Backtrack,
+            PatchSurroundings,
         }
         while let Some(Reverse((priority, _, x, y))) = self.entropy_queue.pop() {
             let index = self.grid.xy_to_index(x, y);
             let state = if self.possibilities[index].is_empty() {
-                println!("0 possibilities for ({x},{y}) [index]");
-                State::Backtrack
+                // TODO: debug!
+                // println!("0 possibilities for ({x},{y}) [index]");
+                State::PatchSurroundings
             } else {
                 let mut choices = self.possibilities[index]
                     .difference(&self.invalid_possibilities[index])
@@ -391,16 +312,19 @@ where
                 // sort required for deterministic generation
                 choices.sort();
                 if choices.is_empty() {
-                    println!("0 choices for ({x},{y}) [index]");
+                    // TODO: debug!
+                    // println!("0 choices for ({x},{y}) [index]");
+                    // TODO: un-needed?
                     if self.invalid_possibilities[index].len() == T::all().len() {
                         panic!("failed to collapse [{index}] ({x},{y}) has marked every tile as invalid");
                     }
-                    State::Backtrack
+                    State::PatchSurroundings
                 } else {
                     State::SetAny(choices)
                 }
             };
-            println!("[{priority:?}] processing ({x},{y}) [{index}] - {state:?}");
+            // TODO: debug!
+            // println!("[{priority:?}] processing ({x},{y}) [{index}] - {state:?}");
             let mut was_set = false;
             let mut skip = false;
             let res = match state {
@@ -478,7 +402,6 @@ where
                         else {
                             unreachable!()
                         };
-                        self.save_state(index);
                         self.grid.set(x, y, tile);
                         // set the possibilities to the tile we just set it as
                         self.possibilities[index] = HashSet::from([tile]);
@@ -488,53 +411,35 @@ where
                         (Some(tile), (x, y), None)
                     }
                 }
-                State::Backtrack => {
-                    println!("failed to set ({x},{y}) - backtracking");
+                State::PatchSurroundings => {
                     let mut unsets = HashSet::new();
-                    // loop until all backtrack targets regain possibilities
-                    while !self
-                        .backtrack_targets
-                        .iter()
-                        .all(|&ix| !self.possibilities[ix].is_empty())
-                    {
-                        unsets.insert(self.pop_state());
-                        self.refresh_constraints(index);
-                        if self.possibilities[index].is_empty() {
-                            self.backtrack_targets.insert(index);
-                        } else {
-                            self.backtrack_targets.remove(&index);
+                    for (_, nix) in self.grid.neighbor_indexes(x, y, self.wrap_mode) {
+                        let Some(nix) = nix else {
+                            continue;
+                        };
+                        let (nx, ny) = self.grid.index_to_xy(nix);
+                        if self.grid.unset(nx, ny).is_some() {
+                            unsets.insert(nix);
                         }
+                    }
+
+                    for &nix in unsets.iter() {
+                        self.refresh_constraints(nix);
+                        self.update_entropy_by_index(nix);
+                        let (x, y) = self.grid.index_to_xy(nix);
                         for (_, nix) in self.grid.neighbor_indexes(x, y, self.wrap_mode) {
                             let Some(nix) = nix else {
                                 continue;
                             };
-                            if self.possibilities[nix].is_empty() {
-                                self.backtrack_targets.insert(nix);
-                            } else {
-                                self.backtrack_targets.remove(&nix);
+                            if !unsets.contains(&nix) && nix != index {
+                                self.refresh_constraints(nix);
+                                self.update_entropy_by_index(nix);
                             }
                         }
                     }
-                    self.backtrack_targets.clear();
-                    self.entropy_queue.push(Reverse((
-                        Priority::Normal,
-                        self.possibilities[index].len(),
-                        x,
-                        y,
-                    )));
+
                     self.refresh_constraints(index);
-                    for (index, set) in self.possibilities.iter().enumerate() {
-                        if self.grid.get_by_index(index).is_some()
-                            && self.possibilities[index].len() != 1
-                        {
-                            let (x, y) = self.grid.index_to_xy(index);
-                            println!(
-                                "bad state at [{index}] ({x},{y}) {} {set:?}",
-                                self.possibilities[index].len()
-                            );
-                        }
-                    }
-                    println!("backtrack step done");
+                    self.update_entropy_by_index(index);
                     (None, (x, y), Some(unsets))
                 }
             };

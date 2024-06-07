@@ -39,7 +39,7 @@ impl Plugin for SubPlugin {
             .insert_resource(HexScale(20.0))
             .insert_resource(GridSize(UVec2::splat(40)))
             .insert_resource(HexTextMode(Some(TextMode::PossibilityCount)))
-            .insert_resource(WfcAnimate(AnimateMode::SingleAuto))
+            .insert_resource(WfcAnimate(AnimateMode::FullAuto))
             .insert_resource(WfcWrapMode(Some(WrapMode::Both)))
             .insert_resource(Seed(custom_seed))
             .insert_resource(CustomRng(custom_rng))
