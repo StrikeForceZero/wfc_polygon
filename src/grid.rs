@@ -150,6 +150,10 @@ where
         self.height
     }
 
+    pub fn size(&self) -> usize {
+        self.width * self.height
+    }
+
     pub fn cells(&self) -> &[Option<T>] {
         &self.cells
     }
@@ -160,6 +164,10 @@ where
         } else {
             None
         }
+    }
+
+    pub fn is_filled(&self) -> bool {
+        self.set_count == self.width * self.height
     }
 
     pub fn set_count(&self) -> usize {
