@@ -228,49 +228,49 @@ where
         let width = self.width as i32;
         let height = self.height as i32;
         let polygon = self.polygon.into();
-        let nix = match polygon {
+        let (dx, dy) = match polygon {
             Polygon::Triangle => match side {
-                Side::Bottom => (y + 1) * width + x,
-                Side::TopLeft => (y - 1) * width + (x - 1),
-                Side::TopRight => (y - 1) * width + (x + 1),
+                Side::Bottom => (0, 1),
+                Side::TopLeft => (-1, -1),
+                Side::TopRight => (1, -1),
                 _ => panic!(" invalid side {side:?} for {polygon:?}"),
             },
             Polygon::Square => match side {
-                Side::Top => (y - 1) * width + x,
-                Side::Bottom => (y + 1) * width + x,
-                Side::Left => y * width + (x - 1),
-                Side::Right => y * width + (x + 1),
+                Side::Top => (0, -1),
+                Side::Bottom => (0, 1),
+                Side::Left => (-1, 0),
+                Side::Right => (1, 0),
                 _ => panic!(" invalid side {side:?} for {polygon:?}"),
             },
             Polygon::Hexagon(HexagonType::FlatTop) => match side {
-                Side::Top => (y - 1) * width + x,
-                Side::Bottom => (y + 1) * width + x,
+                Side::Top => (0, -1),
+                Side::Bottom => (0, 1),
                 Side::TopLeft => {
                     if x % 2 == 0 {
-                        y * width + (x - 1)
+                        (-1, 0)
                     } else {
-                        (y - 1) * width + (x - 1)
+                        (-1, -1)
                     }
                 }
                 Side::TopRight => {
                     if x % 2 == 0 {
-                        y * width + (x + 1)
+                        (1, 0)
                     } else {
-                        (y - 1) * width + (x + 1)
+                        (1, -1)
                     }
                 }
                 Side::BottomLeft => {
                     if x % 2 == 0 {
-                        (y + 1) * width + (x - 1)
+                        (-1, 1)
                     } else {
-                        y * width + (x - 1)
+                        (-1, 0)
                     }
                 }
                 Side::BottomRight => {
                     if x % 2 == 0 {
-                        (y + 1) * width + (x + 1)
+                        (1, 1)
                     } else {
-                        y * width + (x + 1)
+                        (1, 0)
                     }
                 }
                 _ => panic!(" invalid side {side:?} for {polygon:?}"),
@@ -278,37 +278,38 @@ where
             Polygon::Hexagon(HexagonType::PointyTop) => match side {
                 Side::TopLeft => {
                     if y % 2 == 0 {
-                        (y - 1) * width + (x - 1)
+                        (-1, -1)
                     } else {
-                        (y - 1) * width + x
+                        (0, -1)
                     }
                 }
                 Side::TopRight => {
                     if y % 2 == 0 {
-                        (y - 1) * width + x
+                        (0, -1)
                     } else {
-                        (y - 1) * width + (x + 1)
+                        (1, -1)
                     }
                 }
                 Side::BottomLeft => {
                     if y % 2 == 0 {
-                        (y + 1) * width + (x - 1)
+                        (-1, 1)
                     } else {
-                        (y + 1) * width + x
+                        (0, 1)
                     }
                 }
                 Side::BottomRight => {
                     if y % 2 == 0 {
-                        (y + 1) * width + x
+                        (0, 1)
                     } else {
-                        (y + 1) * width + (x + 1)
+                        (1, 1)
                     }
                 }
-                Side::Left => y * width + (x - 1),
-                Side::Right => y * width + (x + 1),
+                Side::Left => (-1, 0),
+                Side::Right => (1, 0),
                 _ => panic!(" invalid side {side:?} for {polygon:?}"),
             },
         };
+        let nix = self.xy_to_index(x + dx, y + dy);
         // Ensure neighbor_index is within valid range
         if nix >= 0 && nix < (width * height) {
             let (nx, ny) = cast_tuple!(usize, i32, self.index_to_xy(nix as usize));
