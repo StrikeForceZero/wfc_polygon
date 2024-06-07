@@ -133,6 +133,7 @@ where
     compatibility: CompatibilityMap<GT, T>,
     propagation_queue: VecDeque<(usize, usize)>,
     entropy_queue: BinaryHeap<Reverse<(Priority, usize, usize, usize)>>,
+    tile_distribution: Option<HashMap<T, f64>>,
 }
 
 impl<GT, T> WaveFunctionCollapse<GT, T>
@@ -184,6 +185,7 @@ where
             wrap_mode: None,
             possibilities,
             compatibility,
+            tile_distribution: T::distribution(),
             propagation_queue,
             entropy_queue,
         }
@@ -310,18 +312,18 @@ where
                         const MIN_WEIGHT: f64 = 0.001;
                         let total_cells = self.grid.size();
                         let total_set_cells = self.grid.set_count();
-                        let expected_distributions = if let Some(distributions) = T::distribution()
-                        {
-                            let sum = distributions.values().sum::<f64>();
-                            Some(
-                                distributions
-                                    .into_iter()
-                                    .map(|(k, v)| (k, v / sum))
-                                    .collect::<HashMap<_, _>>(),
-                            )
-                        } else {
-                            None
-                        };
+                        let expected_distributions =
+                            if let Some(distributions) = self.tile_distribution.as_ref() {
+                                let sum = distributions.values().sum::<f64>();
+                                Some(
+                                    distributions
+                                        .iter()
+                                        .map(|(k, v)| (k, v / sum))
+                                        .collect::<HashMap<_, _>>(),
+                                )
+                            } else {
+                                None
+                            };
 
                         let Ok(&tile) = choices
                             .into_iter()
