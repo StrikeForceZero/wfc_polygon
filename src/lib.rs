@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
 
@@ -264,4 +265,10 @@ pub trait TileInstance: Debug + Clone + Copy + PartialEq + PartialOrd + Ord + Ha
 
 pub trait Tile<T: TileInstance>: TileInstance {
     fn all() -> Vec<T>;
+    fn probability() -> HashMap<T, f64> {
+        Self::all().into_iter().map(|t| (t, 1.0)).collect()
+    }
+    fn distribution() -> Option<HashMap<T, f64>> {
+        None
+    }
 }
