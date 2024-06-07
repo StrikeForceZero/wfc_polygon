@@ -38,6 +38,7 @@ pub fn gen_map(mut event_writer: EventWriter<MapGenerated>) {
     let mut wfc = WaveFunctionCollapse::new_with_compatibility(
         FlatTopHexGrid::new(25, 25),
         HexTileId::get_compatibility_map(),
+        None,
     );
 
     let max_retries = 100;

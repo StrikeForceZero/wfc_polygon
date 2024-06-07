@@ -9,6 +9,88 @@ use crate::{Side, Tile};
 use crate::compatibility_map::CompatibilityMap;
 use crate::grid::{Grid, GridError, GridType};
 
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum WrapMode {
+    X,
+    Y,
+    Both,
+}
+
+impl WrapMode {
+    pub fn wrap_xy(
+        &self,
+        width: usize,
+        height: usize,
+        pos: (i32, i32),
+        delta: (i32, i32),
+    ) -> (i32, i32) {
+        let width = width as i32;
+        let height = height as i32;
+        let (x, y) = pos;
+        let (dx, dy) = delta;
+        match self {
+            WrapMode::X => ((x + dx + width) % width, y + dy),
+            WrapMode::Y => (x + dx, (y + dy + height) % height),
+            WrapMode::Both => ((x + dx + width) % width, (y + dy + height) % height),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::WrapMode;
+
+    const TEST_SIZE: usize = 2;
+
+    #[test]
+    fn test_wrap_xy_x() {
+        assert_eq!(
+            WrapMode::X.wrap_xy(TEST_SIZE, TEST_SIZE, (1, 0), (1, 0)),
+            (0, 0)
+        );
+        assert_eq!(
+            WrapMode::X.wrap_xy(TEST_SIZE, TEST_SIZE, (1, 0), (2, 0)),
+            (1, 0)
+        );
+        assert_eq!(
+            WrapMode::X.wrap_xy(TEST_SIZE, TEST_SIZE, (0, 1), (-1, 0)),
+            (1, 1)
+        );
+    }
+
+    #[test]
+    fn test_wrap_xy_y() {
+        assert_eq!(
+            WrapMode::Y.wrap_xy(TEST_SIZE, TEST_SIZE, (0, 1), (0, 1)),
+            (0, 0)
+        );
+        assert_eq!(
+            WrapMode::Y.wrap_xy(TEST_SIZE, TEST_SIZE, (0, 1), (0, 2)),
+            (0, 1)
+        );
+        assert_eq!(
+            WrapMode::Y.wrap_xy(TEST_SIZE, TEST_SIZE, (1, 0), (0, -1)),
+            (1, 1)
+        );
+    }
+
+    #[test]
+    fn test_wrap_xy_both() {
+        assert_eq!(
+            WrapMode::Both.wrap_xy(TEST_SIZE, TEST_SIZE, (1, 1), (1, 1)),
+            (0, 0)
+        );
+        assert_eq!(
+            WrapMode::Both.wrap_xy(TEST_SIZE, TEST_SIZE, (1, 1), (2, 2)),
+            (1, 1)
+        );
+        assert_eq!(
+            WrapMode::Both.wrap_xy(TEST_SIZE, TEST_SIZE, (0, 0), (-1, -1)),
+            (1, 1)
+        );
+    }
+}
+
 #[derive(Clone)]
 pub struct WaveFunctionCollapse<GT, T>
 where
@@ -16,6 +98,7 @@ where
     T: Tile<T>,
 {
     grid: Grid<GT, T>,
+    wrap_mode: Option<WrapMode>,
     possibilities: Vec<HashSet<T>>,
     compatibility: CompatibilityMap<GT, T>,
     propagation_queue: VecDeque<(usize, usize)>,
@@ -28,13 +111,14 @@ where
     T: Tile<T>,
     <<GT as GridType<T>>::SideType as TryFrom<Side>>::Error: Debug,
 {
-    pub fn new(grid: Grid<GT, T>) -> Self {
+    pub fn new(grid: Grid<GT, T>, wrap_mode: Option<WrapMode>) -> Self {
         let compatibility = CompatibilityMap::new();
-        Self::new_with_compatibility(grid, compatibility)
+        Self::new_with_compatibility(grid, compatibility, wrap_mode)
     }
     pub fn new_with_compatibility(
         grid: Grid<GT, T>,
         compatibility: CompatibilityMap<GT, T>,
+        wrap_mode: Option<WrapMode>,
     ) -> Self {
         let width = grid.width();
         let height = grid.height();
@@ -54,6 +138,7 @@ where
 
         Self {
             grid,
+            wrap_mode,
             possibilities,
             compatibility,
             propagation_queue,
@@ -78,7 +163,7 @@ where
             let Some(tile) = self.grid.get(x, y) else {
                 continue;
             };
-            for (side, neighbor_index_opt) in self.grid.neighbor_indexes(x, y) {
+            for (side, neighbor_index_opt) in self.grid.neighbor_indexes(x, y, self.wrap_mode) {
                 if let Some(neighbor_index) = neighbor_index_opt {
                     if let Some(allowed_tiles) = self.compatibility.get(tile, side) {
                         let possibilities = &mut self.possibilities[neighbor_index];
@@ -111,7 +196,7 @@ where
             };
             self.possibilities[ix] = HashSet::from([tile]);
             let (x, y) = self.grid.index_to_xy(ix);
-            for (side, nix) in self.grid.neighbor_indexes(x, y) {
+            for (side, nix) in self.grid.neighbor_indexes(x, y, self.wrap_mode) {
                 let Some(nix) = nix else {
                     continue;
                 };
@@ -163,7 +248,7 @@ where
                     self.propagate_constraints();
 
                     // Update entropy for neighbors
-                    for (_, neighbor_index_opt) in self.grid.neighbor_indexes(x, y) {
+                    for (_, neighbor_index_opt) in self.grid.neighbor_indexes(x, y, self.wrap_mode) {
                         if let Some(neighbor_index) = neighbor_index_opt {
                             let (nx, ny) = self.grid.index_to_xy(neighbor_index);
                             self.update_entropy(nx, ny);
@@ -207,7 +292,7 @@ where
                 }
                 continue;
             };
-            for (side, nix) in self.grid.neighbor_indexes(x, y) {
+            for (side, nix) in self.grid.neighbor_indexes(x, y, self.wrap_mode) {
                 let Some(nix) = nix else {
                     continue;
                 };
@@ -238,7 +323,7 @@ where
                 }
             };
             let (x, y) = self.grid.index_to_xy(ix);
-            for (side, nix) in self.grid.neighbor_indexes(x, y) {
+            for (side, nix) in self.grid.neighbor_indexes(x, y, self.wrap_mode) {
                 let Some(nix) = nix else {
                     continue;
                 };
