@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::fmt::{Debug, Display, Formatter};
 
 use thiserror::Error;
@@ -116,6 +117,8 @@ where
     width: usize,
     height: usize,
     cells: Vec<Option<T>>,
+    set_count: usize,
+    set_count_map: HashMap<T, usize>,
 }
 
 impl<GT, T> Grid<GT, T>
@@ -130,6 +133,8 @@ where
             width,
             height,
             cells: vec![None; width * height],
+            set_count: 0,
+            set_count_map: T::all().into_iter().map(|t| (t, 0)).collect(),
         }
     }
     pub fn polygon(&self) -> GT::Type {
@@ -156,17 +161,47 @@ where
         }
     }
 
-    pub fn set(&mut self, x: usize, y: usize, tile: T) {
+    pub fn set_count(&self) -> usize {
+        self.set_count
+    }
+
+    pub fn set_count_map(&self) -> &HashMap<T, usize> {
+        &self.set_count_map
+    }
+
+    pub fn set(&mut self, x: usize, y: usize, tile: T) -> Option<T> {
         if x < self.width && y < self.height {
             let index = self.xy_to_index(x, y);
-            self.cells[index] = Some(tile);
+            match self.cells[index].replace(tile) {
+                some @ Some(_) => some,
+                _ => {
+                    *self.set_count_map.entry(tile).or_default() += 1;
+                    self.set_count += 1;
+                    None
+                }
+            }
+        } else {
+            None
         }
     }
 
-    pub fn unset(&mut self, x: usize, y: usize) {
+    pub fn unset(&mut self, x: usize, y: usize) -> Option<T> {
         if x < self.width && y < self.height {
             let index = self.xy_to_index(x, y);
-            self.cells[index] = None;
+            match self.cells[index].take() {
+                some @ Some(tile) => {
+                    self.set_count_map
+                        .entry(tile)
+                        .or_default()
+                        .checked_sub(1)
+                        .unwrap_or_else(|| unreachable!());
+                    self.set_count -= 1;
+                    some
+                }
+                _ => None,
+            }
+        } else {
+            None
         }
     }
 
