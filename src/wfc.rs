@@ -227,7 +227,6 @@ where
             for (side, neighbor_index_opt) in self.grid.neighbor_indexes(x, y, self.wrap_mode) {
                 if let Some(neighbor_index) = neighbor_index_opt {
                     let old_len = self.possibilities[neighbor_index].len();
-                    self.refresh_constraints(neighbor_index);
                     let possibilities = &mut self.possibilities[neighbor_index];
                     if let Some(n_tile) = self.grid.get_by_index(neighbor_index) {
                         possibilities.retain(|&t| t == n_tile);
