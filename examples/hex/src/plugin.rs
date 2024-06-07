@@ -15,7 +15,7 @@ use crate::event::{
 };
 use crate::resource::{
     ColorMaterialMap, CustomRng, GenMapSystemId, GridSize, HexPossibilitiesCache, HexScale,
-    HexTextMode, Seed, WfcAnimate, WfcWrapMode,
+    HexSelectedData, HexTextMode, Seed, WfcAnimate, WfcWrapMode,
 };
 
 pub struct SubPlugin;
@@ -39,13 +39,14 @@ impl Plugin for SubPlugin {
             .insert_resource(HexScale(20.0))
             .insert_resource(GridSize(UVec2::splat(40)))
             .insert_resource(HexTextMode(Some(TextMode::PossibilityCount)))
-            .insert_resource(WfcAnimate(AnimateMode::SingleManual))
+            .insert_resource(WfcAnimate(AnimateMode::FullAuto))
             .insert_resource(WfcWrapMode(Some(WrapMode::Both)))
             .insert_resource(Seed(custom_seed))
             .insert_resource(CustomRng(custom_rng))
             .register_type::<HexPos>()
             .register_type::<HexData>()
             .register_type::<HexPossibilities>()
+            .register_type::<HexSelectedData>()
             .register_type::<InnerHex>()
             .register_type::<HexInvalid>()
             .register_type::<HexIx>()
@@ -56,6 +57,7 @@ impl Plugin for SubPlugin {
             .register_type::<HexInvalidPossibilities>()
             .init_resource::<ColorMaterialMap>()
             .init_resource::<HexPossibilitiesCache>()
+            .init_resource::<HexSelectedData>()
             .add_event::<RegenerateMap>()
             .add_event::<ClearCache>()
             .add_event::<MapGenerated>()
@@ -67,7 +69,7 @@ impl Plugin for SubPlugin {
             .add_systems(Update,
                          (
                              system::change_hex_mode_event_handler,
-                             // system::ui,
+                             system::ui,
                              system::cache_update_on_hex_selected_handler,
                              system::clear_cache_event_handler,
                              system::map_generated_event_handler,

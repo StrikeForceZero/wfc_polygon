@@ -33,6 +33,7 @@ use crate::resource::*;
 pub fn setup(
     mut commands: Commands,
     hex_scale: Res<HexScale>,
+    grid_size: Res<GridSize>,
     mut regenerate_map_event_writer: EventWriter<RegenerateMap>,
 ) {
     commands.spawn((
@@ -44,6 +45,11 @@ pub fn setup(
                 scale: 0.05 * hex_scale.0,
                 ..default()
             },
+            transform: Transform::from_translation(Vec3::new(
+                grid_size.0.x as f32 * hex_scale.0 / 2.0,
+                grid_size.0.y as f32 * hex_scale.0 / 2.0,
+                0.0,
+            )),
             ..default()
         },
     ));
@@ -65,7 +71,7 @@ pub fn gen_map(
     mut custom_rng: ResMut<CustomRng>,
     mut posibility_cache: ResMut<HexPossibilitiesCache>,
     wrap_mode: Res<WfcWrapMode>,
-    wfc_animate: Res<WfcAnimate>,
+    mut wfc_animate: ResMut<WfcAnimate>,
     grid_size: Res<GridSize>,
     mut grid_cell_update: EventWriter<GridCellUpdate>,
 ) {
@@ -82,6 +88,10 @@ pub fn gen_map(
             AnimateMode::SingleAuto | AnimateMode::SingleManual
         ) {
             if let Some((tile, (x, y))) = inner_wfc.step_with_custom_rng(rng) {
+                // debug
+                if (x, y) == (11, 36) {
+                    wfc_animate.0 = AnimateMode::SingleManual;
+                }
                 // println!("set ({x}, {y}) - {tile:?}");
                 // update all each step for easier visualization
                 for (ix, tile) in inner_wfc.grid().cells().iter().enumerate() {
@@ -229,7 +239,15 @@ pub fn input_handler(
     mut custom_rng: ResMut<CustomRng>,
     mut events: InputHandlerEventParams,
     hex_scale: Res<HexScale>,
-    hex_query: Query<(Entity, Option<&HexIx>, Option<&HexPossibilities>), With<HexData>>,
+    hex_query: Query<
+        (
+            Entity,
+            Option<&HexIx>,
+            Option<&HexPossibilities>,
+            Option<&HexInvalidPossibilities>,
+        ),
+        With<HexData>,
+    >,
     hex_text_query: Query<(Entity, &Parent), With<HexText>>,
     time: Res<Time>,
 ) {
@@ -276,12 +294,14 @@ pub fn input_handler(
     if keyboard_input.just_pressed(KeyT) {
         hex_text_mode.0 = match hex_text_mode.0 {
             None => Some(TextMode::PossibilityCount),
-            Some(TextMode::PossibilityCount) => Some(TextMode::Index),
+            Some(TextMode::PossibilityCount) => Some(TextMode::InvalidCount),
+            Some(TextMode::InvalidCount) => Some(TextMode::Index),
             Some(TextMode::Index) => None,
         };
         println!("changing text mode to {:?}", hex_text_mode.0);
         for (entity, parent) in hex_text_query.iter() {
-            let Ok((_, ix_opt, possibilities_opt)) = hex_query.get(parent.get()) else {
+            let Ok((_, ix_opt, possibilities_opt, invalid_opts)) = hex_query.get(parent.get())
+            else {
                 continue;
             };
             let (visibility, text) = match hex_text_mode.0 {
@@ -289,6 +309,12 @@ pub fn input_handler(
                 Some(TextMode::PossibilityCount) => (
                     Visibility::Inherited,
                     possibilities_opt
+                        .map(|p| p.0.len().to_string())
+                        .unwrap_or_default(),
+                ),
+                Some(TextMode::InvalidCount) => (
+                    Visibility::Inherited,
+                    invalid_opts
                         .map(|p| p.0.len().to_string())
                         .unwrap_or_default(),
                 ),
@@ -326,8 +352,8 @@ pub fn input_handler(
             MouseScrollUnit::Pixel => ev.y,
         };
         for (_, mut projection) in camera_query.iter_mut() {
-            projection.scale -= delta * 0.5;
-            projection.scale = projection.scale.max(0.05 * hex_scale.0);
+            projection.scale -= delta * 0.25;
+            projection.scale = projection.scale.max(0.01 * hex_scale.0);
         }
     }
     let speed = 200.0 * time.delta_seconds();
@@ -349,7 +375,7 @@ pub fn input_handler(
 
 pub fn cache_update_on_hex_selected_handler(
     mut commands: Commands,
-    mut hex_possibilities_cache: ResMut<HexPossibilitiesCache>,
+    mut hex_possibilities_data: ResMut<HexSelectedData>,
     hex_query: Query<(
         &HexPos,
         &HexData,
@@ -370,7 +396,7 @@ pub fn cache_update_on_hex_selected_handler(
             continue;
         }
         if !selection.is_selected {
-            hex_possibilities_cache.0.remove(pos);
+            hex_possibilities_data.0.remove(pos);
             continue;
         }
 
@@ -388,7 +414,7 @@ pub fn cache_update_on_hex_selected_handler(
             if !child_inserted {
                 child_inserted = true;
                 println!("updated cache for {pos:?}");
-                hex_possibilities_cache.0.entry(*pos).or_insert_with(|| {
+                hex_possibilities_data.0.entry(*pos).or_insert_with(|| {
                     (
                         data.clone(),
                         possibilities.clone(),
@@ -443,13 +469,13 @@ pub fn invalid_hex_handler(
     }
 }
 
-pub fn ui(mut egui_contexts: EguiContexts, hex_possibilities_cache: Res<HexPossibilitiesCache>) {
+pub fn ui(mut egui_contexts: EguiContexts, hex_possibility_data: Res<HexSelectedData>) {
     egui::Window::new("Possibilities").show(egui_contexts.ctx_mut(), |ui| {
         egui::ScrollArea::vertical()
             .auto_shrink([false; 2])
             .show(ui, |ui| {
                 ui.heading("Click tile to view possibilities");
-                for (pos, (data, possibilities, invalid)) in hex_possibilities_cache.0.iter() {
+                for (pos, (data, possibilities, invalid)) in hex_possibility_data.0.iter() {
                     ui.add(egui::Label::new(format!(
                         "pos: {}\ndata: {data:#?}\npossibilities:{:#?}\ninvalids:{:#?}",
                         pos.0, possibilities.0, invalid.0
@@ -528,6 +554,7 @@ fn create_hex(
     let hex_text = match hex_text_mode.0 {
         None => String::new(),
         Some(TextMode::Index) => ix.to_string(),
+        Some(TextMode::InvalidCount) => invalid_possibilities.len().to_string(),
         Some(TextMode::PossibilityCount) => possibilities.len().to_string(),
     };
     let id = commands
@@ -599,7 +626,7 @@ pub fn grid_cell_set_event_handler(
                     .clone(),
                 invalid_possibilities: HashSet::new(),
                 tile: gcs.tile,
-                ix: gcs.pos.x as usize * grid_size.0.x as usize + gcs.pos.y as usize,
+                ix: gcs.pos.y as usize * grid_size.0.x as usize + gcs.pos.x as usize,
                 pos: gcs.pos,
                 is_invalid: false,
             },
@@ -761,7 +788,7 @@ pub fn on_cell_update(
                     .clone(),
                 invalid_possibilities: HashSet::new(),
                 tile: data.0.map(|seg| seg.as_id()),
-                ix: pos.x as usize * grid_size.0.x as usize + pos.y as usize,
+                ix: pos.y as usize * grid_size.0.x as usize + pos.x as usize,
                 pos,
                 is_invalid: false,
             },

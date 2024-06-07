@@ -37,6 +37,7 @@ enum TextMode {
     Index,
     #[default]
     PossibilityCount,
+    InvalidCount,
 }
 
 impl std::fmt::Display for HexMode {

@@ -18,6 +18,11 @@ pub struct HexPossibilitiesCache(
 );
 
 #[derive(Debug, Default, Reflect, Resource)]
+pub struct HexSelectedData(
+    pub HashMap<HexPos, (HexData, HexPossibilities, HexInvalidPossibilities)>,
+);
+
+#[derive(Debug, Default, Reflect, Resource)]
 pub struct HexScale(pub f32);
 
 #[derive(Debug, Default, Resource)]
