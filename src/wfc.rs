@@ -7,7 +7,7 @@ use rand::thread_rng;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
-use crate::{Side, Tile};
+use crate::{HexagonType, Polygon, Side, Tile};
 use crate::compatibility_map::{CompatibilityMap, CompatibilityMapError};
 use crate::grid::{Grid, GridError, GridType};
 
@@ -163,6 +163,15 @@ where
     ) -> Self {
         let width = grid.width();
         let height = grid.height();
+
+        if width % 2 != 0 && grid.polygon().into() == Polygon::Hexagon(HexagonType::FlatTop) {
+            // TODO: panic if Wrap::X | Wrap::Both
+        }
+
+        if height % 2 != 0 && grid.polygon().into() == Polygon::Hexagon(HexagonType::PointyTop) {
+            // TODO: panic if Wrap::Y | Wrap::Both
+        }
+
         let possibilities: Vec<HashSet<T>> = vec![T::all().into_iter().collect(); width * height];
         let mut entropy_queue = BinaryHeap::new();
         let mut propagation_queue = VecDeque::new();
