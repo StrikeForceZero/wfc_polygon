@@ -6,7 +6,7 @@ use rand::prelude::*;
 use rand::thread_rng;
 use thiserror::Error;
 
-use crate::{Side, Tile};
+use crate::{HexagonType, Polygon, Side, Tile};
 use crate::compatibility_map::{CompatibilityMap, CompatibilityMapError};
 use crate::grid::{Grid, GridError, GridType};
 
@@ -136,6 +136,21 @@ where
     ) -> Self {
         let width = grid.width();
         let height = grid.height();
+
+        if let Some(wrap_mode) = wrap_mode {
+            if width % 2 != 0 && grid.polygon().into() == Polygon::Hexagon(HexagonType::FlatTop) {
+                if matches!(wrap_mode, WrapMode::X | WrapMode::Both) {
+                    panic!("flat top hexagon with {wrap_mode:?} does support odd size grids");
+                }
+            }
+
+            if height % 2 != 0 && grid.polygon().into() == Polygon::Hexagon(HexagonType::PointyTop) {
+                if matches!(wrap_mode, WrapMode::Y | WrapMode::Both) {
+                    panic!("flat top hexagon with {wrap_mode:?} does support odd size grids");
+                }
+            }
+        }
+
         let tile_all = T::all().into_iter().collect::<HashSet<_>>();
         let possibilities: Vec<HashSet<T>> = vec![tile_all.clone(); width * height];
         let mut entropy_queue = BinaryHeap::new();
