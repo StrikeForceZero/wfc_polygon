@@ -134,6 +134,7 @@ where
     propagation_queue: VecDeque<(usize, usize)>,
     entropy_queue: BinaryHeap<Reverse<(Priority, usize, usize, usize)>>,
     tile_distribution: Option<HashMap<T, f64>>,
+    tile_probability: HashMap<T, f64>,
 }
 
 impl<GT, T> WaveFunctionCollapse<GT, T>
@@ -186,6 +187,7 @@ where
             possibilities,
             compatibility,
             tile_distribution: T::distribution(),
+            tile_probability: T::probability(),
             propagation_queue,
             entropy_queue,
         }
@@ -367,7 +369,7 @@ where
                                         .collect::<HashMap<_, _>>();
                                     target_distribution_map.get(t).cloned().unwrap_or_default()
                                 } else {
-                                    T::probability().get(t).cloned().unwrap_or_default()
+                                    self.tile_probability.get(t).cloned().unwrap_or_default()
                                 }
                             })
                             .cloned()
