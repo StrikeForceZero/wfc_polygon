@@ -5,7 +5,7 @@ use bevy::render::render_asset::RenderAssetUsages;
 
 use crate::hex::map::FlatTopHexagonalSegmentIdMap;
 
-pub fn hex_mesh(sides: Option<FlatTopHexagonalSegmentIdMap>) -> Vec<(Mesh, Color)> {
+pub fn hex_mesh(sides: Option<FlatTopHexagonalSegmentIdMap>) -> [Mesh; 6] {
     // pointy top
     // let vertices = &[
     //     // Center vertex
@@ -55,20 +55,9 @@ pub fn hex_mesh(sides: Option<FlatTopHexagonalSegmentIdMap>) -> Vec<(Mesh, Color
     // Triangle 4: Bottom-left side
     // Triangle 5: Top-left side
 
-    (0..6)
-        .map(|n| {
-            let mut mesh = base_mesh.clone();
-            mesh.insert_indices(Indices::U32(vec![0, (n + 1) % 6 + 1, (n + 2) % 6 + 1]));
-
-            let color = if let Some(sides) = sides {
-                sides
-                    .get_side_from_index(n as usize)
-                    .expect("expected side")
-                    .as_color()
-            } else {
-                Color::BLACK
-            };
-            (mesh, color)
-        })
-        .collect()
+    [0, 1, 2, 3, 4, 5].map(|n| {
+        let mut mesh = base_mesh.clone();
+        mesh.insert_indices(Indices::U32(vec![0, (n + 1) % 6 + 1, (n + 2) % 6 + 1]));
+        mesh
+    })
 }

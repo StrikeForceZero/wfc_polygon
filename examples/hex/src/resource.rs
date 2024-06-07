@@ -45,3 +45,6 @@ pub struct Seed(pub Option<u64>);
 
 #[derive(Debug, Default, Resource)]
 pub struct CustomRng(pub Option<StdRng>);
+
+#[derive(Debug, Default, Resource)]
+pub struct HexMesh(pub Option<[Handle<Mesh>; 6]>);

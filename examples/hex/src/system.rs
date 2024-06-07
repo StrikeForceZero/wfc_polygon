@@ -533,6 +533,7 @@ fn create_hex(
     meshes: &mut ResMut<Assets<Mesh>>,
     materials: &mut ResMut<Assets<ColorMaterial>>,
     color_material_map: &mut ResMut<ColorMaterialMap>,
+    hex_mesh: &mut ResMut<HexMesh>,
     hex_text_mode: &Res<HexTextMode>,
 ) {
     let possibilities = create_hex_options.possibilities;
@@ -552,7 +553,20 @@ fn create_hex(
         position.y += 0.9 * scale;
     }
     let hex_sides: Option<FlatTopHexagonalSegmentIdMap> = tile.map(|tile| tile.into());
-    let mesh_color_tuples = crate::hex::mesh::hex_mesh(hex_sides);
+    let meshes = if let Some(mesh_handles) = hex_mesh.0.as_ref() {
+        mesh_handles.clone()
+    } else {
+        let meshes = crate::hex::mesh::hex_mesh(hex_sides).map(|mesh| {
+            // AABBs don't get recalculated and break ray-casts / picking, so we need to either:
+            // - resize mesh via mesh.scaled_by instead of transform.scale
+            // - use transform.scale and call mesh.compute_aabb() after the mesh is loaded in the scene to fix it
+            // https://github.com/bevyengine/bevy/issues/4294
+            let mesh = mesh.scaled_by(Vec2::splat(0.95 * scale).extend(0.0));
+            meshes.add(mesh)
+        });
+        hex_mesh.0 = Some(meshes.clone());
+        meshes
+    };
     let hex_text = match hex_text_mode.0 {
         None => String::new(),
         Some(TextMode::Index) => ix.to_string(),
@@ -569,13 +583,16 @@ fn create_hex(
             SpatialBundle::from_transform(Transform::from_translation(position)),
         ))
         .with_children(|children| {
-            for (mesh, color) in mesh_color_tuples {
-                // AABBs don't get recalculated and break ray-casts / picking, so we need to either:
-                // - resize mesh via mesh.scaled_by instead of transform.scale
-                // - use transform.scale and call mesh.compute_aabb() after the mesh is loaded in the scene to fix it
-                // https://github.com/bevyengine/bevy/issues/4294
-                let mesh = mesh.scaled_by(Vec2::splat(0.95 * scale).extend(0.0));
-                let mesh = Mesh2dHandle(meshes.add(mesh));
+            for (ix, mesh_handle) in meshes.into_iter().enumerate() {
+                let mesh = Mesh2dHandle(mesh_handle);
+                let color = if let Some(sides) = hex_sides {
+                    sides
+                        .get_side_from_index(ix)
+                        .expect("expected side")
+                        .as_color()
+                } else {
+                    Color::BLACK
+                };
                 let handle = &color_material_map
                     .0
                     .entry(ColorWrapper(color))
@@ -608,6 +625,7 @@ pub fn grid_cell_set_event_handler(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut color_material_map: ResMut<ColorMaterialMap>,
+    mut hex_mesh: ResMut<HexMesh>,
     hex_possibilities_cache: Res<HexPossibilitiesCache>,
     hex_query: Query<(&HexPos, Entity)>,
 ) {
@@ -644,6 +662,7 @@ pub fn grid_cell_set_event_handler(
             &mut meshes,
             &mut materials,
             &mut color_material_map,
+            &mut hex_mesh,
             &hex_text_mode,
         );
     }
@@ -658,6 +677,7 @@ pub fn map_generated_event_handler(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut color_material_map: ResMut<ColorMaterialMap>,
+    mut hex_mesh: ResMut<HexMesh>,
 ) {
     if let Some(MapGenerated(wfc)) = events.read().last() {
         // despawn last map
@@ -704,6 +724,7 @@ pub fn map_generated_event_handler(
                 &mut meshes,
                 &mut materials,
                 &mut color_material_map,
+                &mut hex_mesh,
                 &hex_text_mode,
             );
         }
@@ -757,6 +778,7 @@ pub fn on_cell_update(
     mut meshes: ResMut<Assets<Mesh>>,
     mut materials: ResMut<Assets<ColorMaterial>>,
     mut color_material_map: ResMut<ColorMaterialMap>,
+    mut hex_mesh: ResMut<HexMesh>,
     hex_possibilities_cache: Res<HexPossibilitiesCache>,
     hex_query: Query<(&HexPos, (Entity, &Children))>,
     hex_text_query: Query<&HexText>,
@@ -813,6 +835,7 @@ pub fn on_cell_update(
             &mut meshes,
             &mut materials,
             &mut color_material_map,
+            &mut hex_mesh,
             &hex_text_mode,
         );
     }

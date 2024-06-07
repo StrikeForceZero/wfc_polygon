@@ -14,8 +14,8 @@ use crate::event::{
     ChangeHexMode, ClearCache, GridCellSet, GridCellUpdate, MapGenerated, RegenerateMap, WfcStep,
 };
 use crate::resource::{
-    ColorMaterialMap, CustomRng, GenMapSystemId, GridSize, HexPossibilitiesCache, HexScale,
-    HexSelectedData, HexTextMode, Seed, WfcAnimate, WfcWrapMode,
+    ColorMaterialMap, CustomRng, GenMapSystemId, GridSize, HexMesh, HexPossibilitiesCache,
+    HexScale, HexSelectedData, HexTextMode, Seed, WfcAnimate, WfcWrapMode,
 };
 
 pub struct SubPlugin;
@@ -58,6 +58,7 @@ impl Plugin for SubPlugin {
             .init_resource::<ColorMaterialMap>()
             .init_resource::<HexPossibilitiesCache>()
             .init_resource::<HexSelectedData>()
+            .init_resource::<HexMesh>()
             .add_event::<RegenerateMap>()
             .add_event::<ClearCache>()
             .add_event::<MapGenerated>()
