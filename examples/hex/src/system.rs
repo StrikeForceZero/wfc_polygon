@@ -87,7 +87,7 @@ pub fn gen_map(
             wfc_animate.0,
             AnimateMode::SingleAuto | AnimateMode::SingleManual
         ) {
-            if let Some((tile, (x, y))) = inner_wfc.step_with_custom_rng(rng) {
+            if let Some((tile, (x, y), unsets)) = inner_wfc.step_with_custom_rng(rng) {
                 // debug
                 if (x, y) == (11, 36) {
                     wfc_animate.0 = AnimateMode::SingleManual;
@@ -127,6 +127,12 @@ pub fn gen_map(
                         }
                     }
                     grid_cell_update.send(GridCellUpdate(pos));
+                }
+                for (x, y) in unsets.unwrap_or_default() {
+                    grid_cell_set_event_writer.send(GridCellSet {
+                        tile: None,
+                        pos: UVec2::from((x as u32, y as u32)),
+                    });
                 }
                 grid_cell_set_event_writer.send(GridCellSet {
                     tile,
@@ -616,6 +622,7 @@ pub fn grid_cell_set_event_handler(
         }
         create_hex(
             CreateHexOptions {
+                // TODO: this should be an object not tuple
                 // we populate these when the grid is done
                 possibilities: hex_possibilities_cache
                     .0
@@ -624,7 +631,13 @@ pub fn grid_cell_set_event_handler(
                     .1
                      .0
                     .clone(),
-                invalid_possibilities: HashSet::new(),
+                invalid_possibilities: hex_possibilities_cache
+                    .0
+                    .get(&HexPos(gcs.pos))
+                    .expect("failed to get possibilities")
+                    .2
+                     .0
+                    .clone(),
                 tile: gcs.tile,
                 ix: gcs.pos.y as usize * grid_size.0.x as usize + gcs.pos.x as usize,
                 pos: gcs.pos,
@@ -778,6 +791,7 @@ pub fn on_cell_update(
         }
         create_hex(
             CreateHexOptions {
+                // TODO: this should be an object not tuple
                 // we populate these when the grid is done
                 possibilities: hex_possibilities_cache
                     .0
@@ -786,7 +800,13 @@ pub fn on_cell_update(
                     .1
                      .0
                     .clone(),
-                invalid_possibilities: HashSet::new(),
+                invalid_possibilities: hex_possibilities_cache
+                    .0
+                    .get(&HexPos(pos))
+                    .expect("failed to get possibilities")
+                    .2
+                     .0
+                    .clone(),
                 tile: data.0.map(|seg| seg.as_id()),
                 ix: pos.y as usize * grid_size.0.x as usize + pos.x as usize,
                 pos,
