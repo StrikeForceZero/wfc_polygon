@@ -1,44 +1,51 @@
 use bevy::prelude::*;
 
-use crate::component::{HexData, HexInvalid, HexPos, HexPossibilities, InnerHex};
-use crate::event::{ChangeHexMode, ClearCache, MapGenerated, RegenerateMap};
-use crate::resource::{GenMapSystemId, HexPossibilitiesCache, HexScale};
-use crate::system;
+use crate::{config, hex, input, ui, wfc};
+use crate::config::{GridCellScale, GridSize};
+use crate::wfc::RegenerateMap;
 
 pub struct SubPlugin;
 
 impl Plugin for SubPlugin {
     fn build(&self, app: &mut App) {
-        let gen_map_res = GenMapSystemId(app.world.register_system(system::gen_map));
         app
             /* rustfmt next line chain */
-            .insert_resource(gen_map_res)
-            .insert_resource(HexScale(20.0))
-            .register_type::<HexPos>()
-            .register_type::<HexData>()
-            .register_type::<HexPossibilities>()
-            .register_type::<InnerHex>()
-            .register_type::<HexInvalid>()
-            .register_type::<HexPossibilitiesCache>()
-            .init_resource::<HexPossibilitiesCache>()
-            .add_event::<RegenerateMap>()
-            .add_event::<ClearCache>()
-            .add_event::<MapGenerated>()
-            .add_event::<ChangeHexMode>()
-            .add_systems(Startup, system::setup)
-            .add_systems(Update,
-                         (
-                             system::change_hex_mode_event_handler,
-                             system::ui,
-                             system::cache_update_on_hex_selected_handler,
-                             system::input_handler,
-                             system::regen_map_event_handler,
-                             system::clear_cache_event_handler,
-                             system::map_generated_event_handler,
-                         ).chain(),
-            )
-            .add_systems(PostUpdate, system::invalid_hex_handler)
+            .add_plugins(config::SubPlugin)
+            .add_plugins(hex::SubPlugin)
+            .add_plugins(wfc::SubPlugin)
+            .add_plugins(input::SubPlugin)
+            .add_plugins(ui::SubPlugin)
+            .add_systems(Startup, setup)
         /* rustfmt next line semi-colon */
         ;
     }
+}
+
+#[derive(Debug, Copy, Clone, Reflect, Component, PartialEq, Eq, Hash)]
+pub struct MainCamera;
+
+pub fn setup(
+    mut commands: Commands,
+    hex_scale: Res<GridCellScale>,
+    grid_size: Res<GridSize>,
+    mut regenerate_map_event_writer: EventWriter<RegenerateMap>,
+) {
+    commands.spawn((
+        MainCamera,
+        Camera2dBundle {
+            projection: OrthographicProjection {
+                far: 1000.,
+                near: -1000.,
+                scale: 0.05 * hex_scale.0,
+                ..default()
+            },
+            transform: Transform::from_translation(Vec3::new(
+                grid_size.0.x as f32 * hex_scale.0 / 2.0,
+                grid_size.0.y as f32 * hex_scale.0 / 2.0,
+                0.0,
+            )),
+            ..default()
+        },
+    ));
+    regenerate_map_event_writer.send(RegenerateMap);
 }

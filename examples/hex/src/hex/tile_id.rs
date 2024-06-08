@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use bevy::prelude::*;
 use itertools::iproduct;
 
@@ -5,19 +7,53 @@ use wfc_polygon::{FlatTopHexSide, Tile, TileInstance};
 use wfc_polygon::compatibility_map::CompatibilityMap;
 use wfc_polygon::grid::FlatTopHexGrid;
 
-use crate::{HEX_MODE, HexMode};
+use crate::config::HEX_MODE;
+use crate::config::HexMode;
 use crate::hex::HexSegmentIdTuple;
 use crate::hex::map::{FlatTopHexagonalSegmentIdMap, FlatTopHexagonalSegmentIdOptionMap};
 use crate::hex::segment::HexSegmentId;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Reflect)]
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Reflect)]
 pub struct HexTileId(pub HexSegmentIdTuple);
+
+impl HexTileId {
+    fn probability(&self) -> f64 {
+        let tuple = self.0;
+        [tuple.0, tuple.1, tuple.2, tuple.3, tuple.4, tuple.5]
+            .map(|t| t.probability())
+            .iter()
+            .sum::<f64>()
+            / 6.0
+    }
+    fn distribution(&self) -> f64 {
+        let tuple = self.0;
+        [tuple.0, tuple.1, tuple.2, tuple.3, tuple.4, tuple.5]
+            .map(|t| t.distribution())
+            .iter()
+            .sum::<f64>()
+            / 6.0
+    }
+}
 
 impl TileInstance for HexTileId {}
 
 impl Tile<Self> for HexTileId {
     fn all() -> Vec<Self> {
         Self::permutations()
+    }
+    fn probability() -> HashMap<Self, f64> {
+        Self::all()
+            .into_iter()
+            .map(|t| (t, t.probability()))
+            .collect()
+    }
+    fn distribution() -> Option<HashMap<Self, f64>> {
+        Some(
+            Self::all()
+                .into_iter()
+                .map(|t| (t, t.distribution()))
+                .collect(),
+        )
     }
 }
 
@@ -100,7 +136,14 @@ impl HexTileId {
     pub fn get_compatibility_map() -> CompatibilityMap<FlatTopHexGrid, Self> {
         let mut map = CompatibilityMap::new();
         let permutations = Self::permutations();
-        for &combination in permutations.iter() {
+        info!("permutations: {}", permutations.len());
+        for (index, &combination) in permutations.iter().enumerate() {
+            info!(
+                "{}/{} ({:.2}%)",
+                index,
+                permutations.len(),
+                index as f32 / permutations.len() as f32 * 100.0
+            );
             for (side, pattern) in Self::valid_sets_pattern(combination) {
                 let valid_tiles = permutations
                     .iter()
