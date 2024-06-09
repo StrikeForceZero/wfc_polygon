@@ -16,7 +16,7 @@ use rand::rngs::mock::StepRng;
 
 use wfc_polygon::grid::{FlatTopHexGrid, GridType};
 use wfc_polygon::Tile;
-use wfc_polygon::wfc::WaveFunctionCollapse;
+use wfc_polygon::wfc::{StepResult, WaveFunctionCollapse};
 
 use crate::color_wrapper::ColorWrapper;
 use crate::config::{
@@ -133,7 +133,12 @@ pub fn gen_map(
             resoureces.wfc_animate.0,
             WfcAnimateMode::SingleAuto | WfcAnimateMode::SingleManual
         ) {
-            if let Some((tile, (x, y), unsets)) = inner_wfc.step_with_custom_rng(rng) {
+            if let Some(StepResult {
+                tile,
+                pos: (x, y),
+                unsets,
+            }) = inner_wfc.step_with_custom_rng(rng)
+            {
                 debug!("set ({x}, {y}) - {tile:?}");
                 // update all each step for easier visualization
                 for (ix, tile) in inner_wfc.grid().cells().iter().enumerate() {

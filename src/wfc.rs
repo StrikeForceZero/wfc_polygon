@@ -103,6 +103,13 @@ mod tests {
     }
 }
 
+#[derive(Debug)]
+pub struct StepResult<T> {
+    pub tile: Option<T>,
+    pub pos: (usize, usize),
+    pub unsets: Option<HashSet<(usize, usize)>>,
+}
+
 #[derive(Clone)]
 pub struct WaveFunctionCollapse<GT, T>
 where
@@ -268,10 +275,7 @@ where
         self.update_entropy(x, y);
     }
 
-    fn _step(
-        &mut self,
-        rng: &mut impl Rng,
-    ) -> Option<(Option<T>, (usize, usize), Option<HashSet<(usize, usize)>>)> {
+    fn _step(&mut self, rng: &mut impl Rng) -> Option<StepResult<T>> {
         #[derive(Debug)]
         enum State<T> {
             SetAny(Vec<T>),
@@ -296,14 +300,14 @@ where
             debug!("processing ({x},{y}) [{index}] - {state:?}");
             let mut was_set = false;
             let mut skip = false;
-            let res = match state {
+            let (set_tile, unset_positions) = match state {
                 State::SetAny(choices) => {
                     was_set = true;
                     if self.grid.get(x, y).is_some() {
                         // TODO: we should prevent redundant entries being inserted into binary heap
                         // this would likely be a redundant set so we flag to skip if the grid is not filled
                         skip = true;
-                        (None, (x, y), None)
+                        (None, None)
                     } else {
                         // > 0.0 is used to make sure if that's the only available tile it's still allowed to be selected
                         const MIN_WEIGHT: f64 = 0.001;
@@ -377,7 +381,8 @@ where
 
                         self.propagation_queue.push_back((x, y));
                         self.propagate_constraints();
-                        (Some(tile), (x, y), None)
+
+                        (Some(tile), None)
                     }
                 }
                 State::PatchSurroundings => {
@@ -409,7 +414,7 @@ where
 
                     self.refresh_constraints(index);
                     self.update_entropy_by_index(index);
-                    (None, (x, y), Some(unsets))
+                    (None, Some(unsets))
                 }
             };
             // if filled and last entry was a set, then we clear the queues before returning the result
@@ -422,24 +427,21 @@ where
                 continue;
             }
 
-            let (a, b, c) = res;
-            return Some((
-                a,
-                b,
-                c.map(|s| s.iter().map(|&ix| self.grid.index_to_xy(ix)).collect()),
-            ));
+            return Some(StepResult {
+                tile: set_tile,
+                pos: (x, y),
+                unsets: unset_positions
+                    .map(|s| s.into_iter().map(|ix| self.grid.index_to_xy(ix)).collect()),
+            });
         }
         None
     }
 
-    pub fn step(&mut self) -> Option<(Option<T>, (usize, usize), Option<HashSet<(usize, usize)>>)> {
+    pub fn step(&mut self) -> Option<StepResult<T>> {
         self._step(&mut thread_rng())
     }
 
-    pub fn step_with_custom_rng(
-        &mut self,
-        rng: &mut impl Rng,
-    ) -> Option<(Option<T>, (usize, usize), Option<HashSet<(usize, usize)>>)> {
+    pub fn step_with_custom_rng(&mut self, rng: &mut impl Rng) -> Option<StepResult<T>> {
         self._step(rng)
     }
 
