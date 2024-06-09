@@ -42,18 +42,32 @@ impl Tile<Self> for HexTileId {
         Self::permutations()
     }
     fn probability() -> HashMap<Self, f64> {
-        Self::all()
+        let probabilities: Vec<_> = Self::all()
             .into_iter()
             .map(|t| (t, t.probability()))
+            .collect();
+
+        let total_sum: f64 = probabilities.iter().map(|(_, dist)| dist).sum();
+
+        probabilities
+            .into_iter()
+            .map(|(t, dist)| (t, dist / total_sum))
             .collect()
     }
     fn distribution() -> Option<HashMap<Self, f64>> {
-        Some(
-            Self::all()
-                .into_iter()
-                .map(|t| (t, t.distribution()))
-                .collect(),
-        )
+        let distributions: Vec<_> = Self::all()
+            .into_iter()
+            .map(|t| (t, t.distribution()))
+            .collect();
+
+        let total_sum: f64 = distributions.iter().map(|(_, dist)| dist).sum();
+
+        let normalized_distributions: HashMap<_, _> = distributions
+            .into_iter()
+            .map(|(t, dist)| (t, dist / total_sum))
+            .collect();
+
+        Some(normalized_distributions)
     }
 }
 
