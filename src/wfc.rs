@@ -12,9 +12,9 @@ use crate::grid::{Grid, GridError, GridType};
 
 #[derive(Debug, Error)]
 pub enum WaveFunctionCollapseError<GT, T>
-    where
-        GT: ?Sized + GridType<T>,
-        T: Tile<T>,
+where
+    GT: ?Sized + GridType<T>,
+    T: Tile<T>,
 {
     #[error("{0:?}")]
     GridError(#[from] GridError<GT, T>),
@@ -354,9 +354,9 @@ where
                                 }
                             })
                             .cloned()
-                            else {
-                                unreachable!()
-                            };
+                        else {
+                            unreachable!()
+                        };
                         self.grid.set(x, y, tile);
                         // set the possibilities to the tile we just set it as
                         self.possibilities[index] = HashSet::from([tile]);
