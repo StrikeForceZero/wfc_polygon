@@ -21,7 +21,6 @@ mod wfc;
 
 //noinspection RsConstantConditionIf
 fn main() {
-    util::tracing::init_tracing();
     if DEBUG_COMPATIBILITY_MAP {
         let mode = *HEX_MODE.read().unwrap();
         let compat_map = HexTileId::get_compatibility_map();
