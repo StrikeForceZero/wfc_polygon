@@ -358,16 +358,8 @@ where
                                                 .get(k)
                                                 .unwrap_or_else(|| unreachable!());
 
-                                            let total = if total_set_cells == 0 {
-                                                // to prevent using 0 on the first iteration we use the total cells
-                                                total_cells
-                                            } else {
-                                                // otherwise we use the total set so the distribution can be adaptive
-                                                total_set_cells
-                                            };
-
                                             let expected_count =
-                                                total as f64 * expected_distribution;
+                                                total_cells as f64 * expected_distribution;
                                             let weight = if expected_count == 0.0 {
                                                 // prevent divide by zero
                                                 MIN_WEIGHT
