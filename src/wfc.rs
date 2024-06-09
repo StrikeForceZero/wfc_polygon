@@ -126,6 +126,7 @@ where
     tile_distribution: Option<HashMap<T, f64>>,
     tile_probability: HashMap<T, f64>,
     index_order: Option<Vec<usize>>,
+    uniform_mode: bool,
 }
 
 impl<GT, T> WaveFunctionCollapse<GT, T>
@@ -186,6 +187,7 @@ where
             tile_distribution: T::distribution(),
             tile_probability: T::probability(),
             index_order: None,
+            uniform_mode: true,
         }
     }
 
@@ -290,7 +292,9 @@ where
         //  but we need access to the provided rng to keep it deterministic
         if self.index_order.is_none() {
             let mut indexes = (0..self.grid().size()).collect::<Vec<_>>();
-            indexes.shuffle(rng);
+            if self.uniform_mode {
+                indexes.shuffle(rng);
+            }
             self.index_order = Some(indexes);
             for y in 0..self.grid.height() {
                 for x in 0..self.grid.width() {
