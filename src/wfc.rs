@@ -121,10 +121,11 @@ where
     possibilities: Vec<HashSet<T>>,
     compatibility: CompatibilityMap<GT, T>,
     propagation_queue: VecDeque<(usize, usize)>,
-    entropy_queue: BinaryHeap<Reverse<(usize, usize, usize)>>,
+    entropy_queue: BinaryHeap<Reverse<(usize, usize, usize, usize)>>,
     tile_all: HashSet<T>,
     tile_distribution: Option<HashMap<T, f64>>,
     tile_probability: HashMap<T, f64>,
+    index_order: Option<Vec<usize>>,
 }
 
 impl<GT, T> WaveFunctionCollapse<GT, T>
@@ -168,7 +169,6 @@ where
         for y in 0..height {
             for x in 0..width {
                 let index = grid.xy_to_index(x, y);
-                entropy_queue.push(Reverse((possibilities[index].len(), x, y)));
                 if possibilities[index].len() == 1 {
                     propagation_queue.push_back((x, y));
                 }
@@ -185,6 +185,7 @@ where
             tile_all,
             tile_distribution: T::distribution(),
             tile_probability: T::probability(),
+            index_order: None,
         }
     }
 
@@ -266,8 +267,12 @@ where
 
     fn update_entropy(&mut self, x: usize, y: usize) {
         let index = self.grid.xy_to_index(x, y);
+        let Some(indexes) = &self.index_order else {
+            return;
+        };
+        let order = indexes[index];
         let entropy = self.possibilities[index].len();
-        self.entropy_queue.push(Reverse((entropy, x, y)));
+        self.entropy_queue.push(Reverse((entropy, order, x, y)));
     }
 
     fn update_entropy_by_index(&mut self, index: usize) {
@@ -281,7 +286,19 @@ where
             SetAny(Vec<T>),
             PatchSurroundings,
         }
-        while let Some(Reverse((_, x, y))) = self.entropy_queue.pop() {
+        // TODO: this would be better in the initialize fn or the new fn
+        //  but we need access to the provided rng to keep it deterministic
+        if self.index_order.is_none() {
+            let mut indexes = (0..self.grid().size()).collect::<Vec<_>>();
+            indexes.shuffle(rng);
+            self.index_order = Some(indexes);
+            for y in 0..self.grid.height() {
+                for x in 0..self.grid.width() {
+                    self.update_entropy(x, y);
+                }
+            }
+        }
+        while let Some(Reverse((_, _, x, y))) = self.entropy_queue.pop() {
             let index = self.grid.xy_to_index(x, y);
             let state = if self.possibilities[index].is_empty() {
                 debug!("0 possibilities for ({x},{y}) [index]");
