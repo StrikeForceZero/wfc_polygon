@@ -1,9 +1,7 @@
 use bevy::prelude::*;
 
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Reflect)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Reflect)]
 pub enum HexSegmentId {
-    #[default]
-    None,
     Grass,
     Mountain,
     MountainPeak,
@@ -25,7 +23,6 @@ impl HexSegmentId {
     }
     pub fn compatible(&self) -> Vec<Self> {
         match self {
-            Self::None => vec![],
             Self::Grass => vec![Self::Grass, Self::Sand, Self::Mountain],
             Self::Mountain => vec![Self::Mountain, Self::MountainPeak, Self::Grass],
             Self::MountainPeak => vec![Self::Mountain],
@@ -36,7 +33,6 @@ impl HexSegmentId {
     }
     pub fn probability(&self) -> f64 {
         match self {
-            Self::None => 0.0,
             Self::Grass => 0.8,
             Self::Mountain => 0.25,
             Self::MountainPeak => 0.5,
@@ -47,7 +43,6 @@ impl HexSegmentId {
     }
     pub fn distribution(&self) -> f64 {
         match self {
-            Self::None => 0.0,
             Self::Grass => 0.8,
             Self::Mountain => 0.25,
             Self::MountainPeak => 0.01,
@@ -58,7 +53,6 @@ impl HexSegmentId {
     }
     pub fn as_color(&self) -> Color {
         match self {
-            Self::None => Color::BLACK,
             Self::Grass => Color::DARK_GREEN,
             Self::Mountain => Color::GRAY,
             Self::MountainPeak => Color::WHITE,

@@ -13,7 +13,7 @@ use crate::hex::HexSegmentIdTuple;
 use crate::hex::map::{FlatTopHexagonalSegmentIdMap, FlatTopHexagonalSegmentIdOptionMap};
 use crate::hex::segment::HexSegmentId;
 
-#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Reflect)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Reflect)]
 pub struct HexTileId(pub HexSegmentIdTuple);
 
 impl HexTileId {

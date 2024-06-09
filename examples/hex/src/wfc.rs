@@ -654,15 +654,27 @@ pub struct ClearSelectedHex;
 #[derive(Debug, Resource)]
 pub struct GenMapSystemId(pub SystemId);
 
-#[derive(Debug, Default, Reflect, Resource)]
+#[derive(Debug, Reflect, Resource)]
 pub struct GridCellDataCache<T>(
     pub HashMap<GridCellPos, (GridCellTile<T>, WfcCellPossibilities<T>)>,
 );
 
-#[derive(Debug, Default, Reflect, Resource)]
+impl<T> Default for GridCellDataCache<T> {
+    fn default() -> Self {
+        Self(HashMap::default())
+    }
+}
+
+#[derive(Debug, Reflect, Resource)]
 pub struct SelectedGridCellData<T>(
     pub HashMap<GridCellPos, (GridCellTile<T>, WfcCellPossibilities<T>)>,
 );
+
+impl<T> Default for SelectedGridCellData<T> {
+    fn default() -> Self {
+        Self(HashMap::default())
+    }
+}
 
 #[derive(Debug, Default, Resource)]
 pub struct GridCellMeshHandle(pub Option<[Handle<Mesh>; 6]>);
