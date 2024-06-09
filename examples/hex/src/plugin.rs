@@ -1,7 +1,10 @@
 use bevy::prelude::*;
+use itertools::Itertools;
 
 use crate::{config, hex, input, ui, wfc};
-use crate::config::{GridCellScale, GridSize};
+use crate::config::{DEBUG_COMPATIBILITY_MAP, GridCellScale, GridSize, HEX_MODE, HexMode};
+use crate::hex::segment::HexSegmentId;
+use crate::hex::tile_id::HexTileId;
 use crate::wfc::RegenerateMap;
 
 pub struct SubPlugin;
@@ -30,6 +33,41 @@ pub fn setup(
     grid_size: Res<GridSize>,
     mut regenerate_map_event_writer: EventWriter<RegenerateMap>,
 ) {
+    if DEBUG_COMPATIBILITY_MAP {
+        let mode = *HEX_MODE.read().unwrap();
+        let compat_map = HexTileId::get_compatibility_map();
+        info!(
+            "CompatibilityMap:\nSize: {} Bytes\nEntries: {}",
+            compat_map.mem_size(),
+            compat_map.iter().count()
+        );
+        match mode {
+            HexMode::Full => {
+                for ((_, hex, side), patterns) in compat_map.iter() {
+                    fn get_segment(hex: &HexTileId) -> &HexSegmentId {
+                        let HexTileId((a, b, c, d, e, f)) = hex;
+                        [a, b, c, d, e, f]
+                            .iter()
+                            .all_equal_value()
+                            .unwrap_or_else(|diff| {
+                                panic!("HexMode::Full expects each segment to be the same {diff:?}")
+                            })
+                    }
+                    let segment = get_segment(hex);
+                    let valid_set = patterns.iter().map(get_segment).collect::<Vec<_>>();
+                    debug!("{segment:?} {side:?} {valid_set:?}",);
+                }
+            }
+            HexMode::Segments => {
+                // too many to print
+            }
+        }
+        if let Err(err) = compat_map.check_contradictions() {
+            warn!("{err:?}");
+        } else {
+            info!("no contradictions");
+        }
+    }
     commands.spawn((
         MainCamera,
         Camera2dBundle {

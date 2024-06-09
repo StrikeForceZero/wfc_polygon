@@ -83,7 +83,7 @@ impl Plugin for SubPlugin {
         app
             /* rustfmt next line chain */
             .register_type::<HexTileId>()
-            .insert_resource(HexCompatabilityMap::create(*crate::HEX_MODE.read().expect("failed to read HEX_MODE")))
+            .insert_resource(HexCompatabilityMap::create(*crate::config::HEX_MODE.read().expect("failed to read HEX_MODE")))
         /* rustfmt next line semi-colon */
         ;
     }
