@@ -366,7 +366,17 @@ where
                                             (k, weight)
                                         })
                                         .collect::<HashMap<_, _>>();
-                                    target_distribution_map.get(t).cloned().unwrap_or_default()
+                                    let total_weight: f64 = target_distribution_map.values().sum();
+                                    let normalized_distribution_map: HashMap<_, _> =
+                                        target_distribution_map
+                                            .into_iter()
+                                            .map(|(k, weight)| (k, weight / total_weight))
+                                            .collect();
+
+                                    normalized_distribution_map
+                                        .get(t)
+                                        .cloned()
+                                        .unwrap_or_default()
                                 } else {
                                     self.tile_probability.get(t).cloned().unwrap_or_default()
                                 }
