@@ -13,7 +13,7 @@ pub enum HexSegmentId {
 }
 
 impl HexSegmentId {
-    pub fn all() -> Vec<HexSegmentId> {
+    pub fn all() -> Vec<Self> {
         vec![
             Self::Grass,
             Self::Mountain,
@@ -23,7 +23,7 @@ impl HexSegmentId {
             Self::Sand,
         ]
     }
-    pub fn compatible(&self) -> Vec<HexSegmentId> {
+    pub fn compatible(&self) -> Vec<Self> {
         match self {
             Self::None => vec![],
             Self::Grass => vec![Self::Grass, Self::Sand, Self::Mountain],
@@ -36,35 +36,35 @@ impl HexSegmentId {
     }
     pub fn probability(&self) -> f64 {
         match self {
-            HexSegmentId::None => 0.0,
-            HexSegmentId::Grass => 0.8,
-            HexSegmentId::Mountain => 0.25,
-            HexSegmentId::MountainPeak => 0.5,
-            HexSegmentId::River => 0.6,
-            HexSegmentId::Ocean => 0.7,
-            HexSegmentId::Sand => 0.35,
+            Self::None => 0.0,
+            Self::Grass => 0.8,
+            Self::Mountain => 0.25,
+            Self::MountainPeak => 0.5,
+            Self::River => 0.6,
+            Self::Ocean => 0.7,
+            Self::Sand => 0.35,
         }
     }
     pub fn distribution(&self) -> f64 {
         match self {
-            HexSegmentId::None => 0.0,
-            HexSegmentId::Grass => 0.8,
-            HexSegmentId::Mountain => 0.25,
-            HexSegmentId::MountainPeak => 0.01,
-            HexSegmentId::River => 0.3,
-            HexSegmentId::Ocean => 0.7,
-            HexSegmentId::Sand => 0.35,
+            Self::None => 0.0,
+            Self::Grass => 0.8,
+            Self::Mountain => 0.25,
+            Self::MountainPeak => 0.01,
+            Self::River => 0.3,
+            Self::Ocean => 0.7,
+            Self::Sand => 0.35,
         }
     }
     pub fn as_color(&self) -> Color {
         match self {
             Self::None => Color::BLACK,
-            HexSegmentId::Grass => Color::DARK_GREEN,
-            HexSegmentId::Mountain => Color::GRAY,
-            HexSegmentId::MountainPeak => Color::WHITE,
-            HexSegmentId::River => Color::BLUE,
-            HexSegmentId::Ocean => Color::MIDNIGHT_BLUE,
-            HexSegmentId::Sand => Color::rgb(0.82, 0.70, 0.55), // Tan
+            Self::Grass => Color::DARK_GREEN,
+            Self::Mountain => Color::GRAY,
+            Self::MountainPeak => Color::WHITE,
+            Self::River => Color::BLUE,
+            Self::Ocean => Color::MIDNIGHT_BLUE,
+            Self::Sand => Color::rgb(0.82, 0.70, 0.55), // Tan
         }
     }
 }
