@@ -3,6 +3,7 @@ use bevy::prelude::*;
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd, Reflect)]
 pub enum HexSegmentId {
     Grass,
+    Forest,
     Mountain,
     MountainPeak,
     River,
@@ -14,6 +15,7 @@ impl HexSegmentId {
     pub fn all() -> Vec<Self> {
         vec![
             Self::Grass,
+            Self::Forest,
             Self::Mountain,
             Self::MountainPeak,
             Self::River,
@@ -23,9 +25,10 @@ impl HexSegmentId {
     }
     pub fn compatible(&self) -> Vec<Self> {
         match self {
-            Self::Grass => vec![Self::Grass, Self::Sand, Self::Mountain],
+            Self::Grass => vec![Self::Grass, Self::Sand, Self::Mountain, Self::Forest],
+            Self::Forest => vec![Self::Forest, Self::Grass],
             Self::Mountain => vec![Self::Mountain, Self::MountainPeak, Self::Grass],
-            Self::MountainPeak => vec![Self::Mountain],
+            Self::MountainPeak => vec![Self::MountainPeak, Self::Mountain],
             Self::River => vec![Self::River, Self::Ocean, Self::Sand],
             Self::Ocean => vec![Self::Ocean, Self::River],
             Self::Sand => vec![Self::Sand, Self::Grass, Self::River],
@@ -34,8 +37,9 @@ impl HexSegmentId {
     pub fn probability(&self) -> f64 {
         match self {
             Self::Grass => 0.8,
-            Self::Mountain => 0.25,
-            Self::MountainPeak => 0.5,
+            Self::Forest => 0.15,
+            Self::Mountain => 0.10,
+            Self::MountainPeak => 0.05,
             Self::River => 0.6,
             Self::Ocean => 0.7,
             Self::Sand => 0.35,
@@ -44,7 +48,8 @@ impl HexSegmentId {
     pub fn distribution(&self) -> f64 {
         match self {
             Self::Grass => 0.8,
-            Self::Mountain => 0.25,
+            Self::Forest => 0.15,
+            Self::Mountain => 0.10,
             Self::MountainPeak => 0.01,
             Self::River => 0.3,
             Self::Ocean => 0.7,
@@ -54,6 +59,7 @@ impl HexSegmentId {
     pub fn as_color(&self) -> Color {
         match self {
             Self::Grass => Color::DARK_GREEN,
+            Self::Forest => Color::rgb(0.0, 0.21, 0.05),
             Self::Mountain => Color::GRAY,
             Self::MountainPeak => Color::WHITE,
             Self::River => Color::BLUE,

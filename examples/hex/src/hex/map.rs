@@ -94,6 +94,7 @@ impl FlatTopHexagonalSegmentIdMap {
             let seg = self.get_side(side);
             match seg {
                 HexSegmentId::Grass => {}
+                HexSegmentId::Forest => {}
                 HexSegmentId::Mountain => {}
                 HexSegmentId::Ocean | HexSegmentId::MountainPeak => {
                     for other_side in FLAT_HEX_SIDES {
