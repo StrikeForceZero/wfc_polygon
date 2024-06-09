@@ -8,7 +8,7 @@ use thiserror::Error;
 use tracing::debug;
 
 use crate::{HexagonType, Polygon, Side, Tile};
-use crate::compatibility_map::{CompatibilityMap, CompatibilityMapError};
+use crate::compatibility_map::CompatibilityMap;
 use crate::grid::{Grid, GridError, GridType};
 
 #[derive(Debug, Error)]
@@ -145,7 +145,8 @@ where
                 }
             }
 
-            if height % 2 != 0 && grid.polygon().into() == Polygon::Hexagon(HexagonType::PointyTop) {
+            if height % 2 != 0 && grid.polygon().into() == Polygon::Hexagon(HexagonType::PointyTop)
+            {
                 if matches!(wrap_mode, WrapMode::Y | WrapMode::Both) {
                     panic!("flat top hexagon with {wrap_mode:?} does support odd size grids");
                 }

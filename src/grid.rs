@@ -495,8 +495,11 @@ mod tests {
             }
         }
 
-        let mut wfc =
-            WaveFunctionCollapse::new_with_compatibility(SquareGrid::new(10, 10), compatibility, None);
+        let mut wfc = WaveFunctionCollapse::new_with_compatibility(
+            SquareGrid::new(10, 10),
+            compatibility,
+            None,
+        );
         let max_retries = 10;
 
         for _ in 1..=max_retries {
@@ -554,8 +557,11 @@ mod tests {
             }
         }
 
-        let mut wfc =
-            WaveFunctionCollapse::new_with_compatibility(SquareGrid::new(2, 1), compatibility, None);
+        let mut wfc = WaveFunctionCollapse::new_with_compatibility(
+            SquareGrid::new(2, 1),
+            compatibility,
+            None,
+        );
 
         // don't allow empty cells
         assert!(!wfc.is_valid(false));
@@ -582,16 +588,7 @@ mod tests {
 
         use super::*;
 
-        #[derive(
-            Debug,
-            Clone,
-            Copy,
-            PartialEq,
-            Eq,
-            Hash,
-            Ord,
-            PartialOrd,
-        )]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Ord, PartialOrd)]
         enum TestTile {
             _0_0,
             _1_0,
