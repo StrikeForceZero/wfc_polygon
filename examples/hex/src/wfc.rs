@@ -106,10 +106,10 @@ pub fn gen_map(
     mut local_state: Local<GenMapLocalState>,
     mut commands: Commands,
     hex_query: Query<Entity, With<GridCellTile<HexTileId>>>,
-    mut resoureces: GenMapResources,
+    mut resources: GenMapResources,
     mut events: GenMapEvents,
 ) {
-    let rng = if let Some(custom_rng) = resoureces.custom_rng.0.as_mut() {
+    let rng = if let Some(custom_rng) = resources.custom_rng.0.as_mut() {
         custom_rng
     } else {
         // TODO: works in nightly
@@ -130,7 +130,7 @@ pub fn gen_map(
     let mut consume_wfc = false;
     if let Some(inner_wfc) = local_state.wfc.as_mut() {
         if matches!(
-            resoureces.wfc_animate.0,
+            resources.wfc_animate.0,
             WfcAnimateMode::SingleAuto | WfcAnimateMode::SingleManual
         ) {
             if let Some(StepResult {
@@ -156,7 +156,7 @@ pub fn gen_map(
                         ),
                     );
                     let pos = UVec2::new(x as u32, y as u32);
-                    match resoureces.possibility_cache.0.entry(GridCellPos(pos)) {
+                    match resources.possibility_cache.0.entry(GridCellPos(pos)) {
                         Entry::Occupied(mut entry) => {
                             entry.insert(data);
                         }
@@ -176,7 +176,7 @@ pub fn gen_map(
                     tile,
                     pos: UVec2::from((x as u32, y as u32)),
                 });
-                if resoureces.wfc_animate.0 == WfcAnimateMode::SingleAuto {
+                if resources.wfc_animate.0 == WfcAnimateMode::SingleAuto {
                     events.wfc_step.send(WfcStep);
                 }
             } else {
@@ -191,27 +191,27 @@ pub fn gen_map(
             commands.entity(entity).despawn_recursive();
         }
         info!("generating map");
-        let compatibility_map = resoureces
+        let compatibility_map = resources
             .hex_compatability_map
             .get_or_create(*HEX_MODE.read().expect("failed to read HEX_MODE"))
             .get_compatibility_map();
         debug!("initializing wfc");
         let mut wfc = WaveFunctionCollapse::new_with_compatibility(
             FlatTopHexGrid::new(
-                resoureces.grid_size.0.x as usize,
-                resoureces.grid_size.0.y as usize,
+                resources.grid_size.0.x as usize,
+                resources.grid_size.0.y as usize,
             ),
             compatibility_map.clone(),
-            resoureces.wrap_mode.0,
+            resources.wrap_mode.0,
         );
 
         if matches!(
-            resoureces.wfc_animate.0,
+            resources.wfc_animate.0,
             WfcAnimateMode::SingleAuto | WfcAnimateMode::SingleManual
         ) {
             wfc.initialize_collapse();
             local_state.wfc = Some(wfc);
-            if resoureces.wfc_animate.0 == WfcAnimateMode::SingleAuto {
+            if resources.wfc_animate.0 == WfcAnimateMode::SingleAuto {
                 events.wfc_step.send(WfcStep);
             }
         } else {
