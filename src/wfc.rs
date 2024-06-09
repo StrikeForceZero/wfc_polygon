@@ -180,12 +180,27 @@ where
         }
     }
 
+    pub fn into_grid(self) -> Grid<GT, T> {
+        self.grid
+    }
+
     pub fn grid(&self) -> &Grid<GT, T> {
         &self.grid
     }
 
     pub fn grid_mut(&mut self) -> &mut Grid<GT, T> {
         &mut self.grid
+    }
+
+    pub fn reset(&mut self)
+    where
+        GT: Clone,
+    {
+        *self = Self::new_with_compatibility(
+            Grid::new(self.grid.polygon(), self.grid.width(), self.grid().height()),
+            self.compatibility.clone(),
+            self.wrap_mode,
+        )
     }
 
     pub fn cached_possibilities(&self) -> &Vec<HashSet<T>> {
