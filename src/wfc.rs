@@ -5,6 +5,7 @@ use std::fmt::Debug;
 use rand::prelude::*;
 use rand::thread_rng;
 use thiserror::Error;
+use tracing::debug;
 
 use crate::{HexagonType, Polygon, Side, Tile};
 use crate::compatibility_map::{CompatibilityMap, CompatibilityMapError};
@@ -263,23 +264,20 @@ where
         while let Some(Reverse((_, x, y))) = self.entropy_queue.pop() {
             let index = self.grid.xy_to_index(x, y);
             let state = if self.possibilities[index].is_empty() {
-                // TODO: debug!
-                // println!("0 possibilities for ({x},{y}) [index]");
+                debug!("0 possibilities for ({x},{y}) [index]");
                 State::PatchSurroundings
             } else {
                 let mut choices = self.possibilities[index].iter().collect::<Vec<_>>();
                 // sort required for deterministic generation
                 choices.sort();
                 if choices.is_empty() {
-                    // TODO: debug!
-                    // println!("0 choices for ({x},{y}) [index]");
+                    debug!("0 choices for ({x},{y}) [index]");
                     State::PatchSurroundings
                 } else {
                     State::SetAny(choices)
                 }
             };
-            // TODO: debug!
-            // println!("[{priority:?}] processing ({x},{y}) [{index}] - {state:?}");
+            debug!("processing ({x},{y}) [{index}] - {state:?}");
             let mut was_set = false;
             let mut skip = false;
             let res = match state {
@@ -430,7 +428,7 @@ where
     }
 
     pub fn initialize_collapse(&mut self) {
-        println!("checking external or previous collapse changes");
+        debug!("checking external or previous collapse changes");
         // Re-load possibilities each iteration to account for external changes
         for (ix, cell) in self.grid.cells().iter().enumerate() {
             let Some(&tile) = cell.as_ref() else {
@@ -450,7 +448,7 @@ where
             }
         }
 
-        println!("initializing queues");
+        debug!("initializing queues");
         // Initialize possibilities
         self.entropy_queue.clear();
         self.propagation_queue.clear();
@@ -466,13 +464,13 @@ where
             }
         }
 
-        println!("propagating");
+        debug!("propagating");
         // Propagate constraints for initially determined tiles
         self.propagate_constraints();
     }
 
     fn _perform_all_steps(&mut self, rng: &mut impl Rng) {
-        println!("collapsing");
+        debug!("collapsing");
         while self._step(rng).is_some() {}
     }
 
@@ -481,7 +479,7 @@ where
     }
 
     pub fn perform_all_steps_with_custom_rng(&mut self, rng: &mut impl Rng) {
-        println!("collapsing");
+        debug!("collapsing");
         while self.step_with_custom_rng(rng).is_some() {}
     }
 
