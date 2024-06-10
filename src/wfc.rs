@@ -110,6 +110,12 @@ pub struct StepResult<T> {
     pub unsets: Option<HashSet<(usize, usize)>>,
 }
 
+#[derive(Debug, Copy, Clone, PartialEq)]
+pub enum EntropyMode {
+    PossibilityCount,
+    Shannon,
+}
+
 #[derive(Clone)]
 pub struct WaveFunctionCollapse<GT, T>
 where
@@ -127,6 +133,7 @@ where
     tile_probability: HashMap<T, f64>,
     index_order: Option<Vec<usize>>,
     uniform_mode: bool,
+    entropy_mode: EntropyMode,
 }
 
 impl<GT, T> WaveFunctionCollapse<GT, T>
@@ -188,6 +195,7 @@ where
             tile_probability: T::probability(),
             index_order: None,
             uniform_mode: true,
+            entropy_mode: EntropyMode::PossibilityCount,
         }
     }
 
@@ -267,13 +275,41 @@ where
         }
     }
 
+    fn shannon_entropy(weights: &[f64]) -> f64 {
+        let sum_weights: f64 = weights.iter().sum();
+        let log_sum_weights = sum_weights.ln();
+        let weighted_log_sum: f64 = weights.iter().map(|&w| w * w.ln()).sum();
+        let normalized_weighted_log_sum = weighted_log_sum / sum_weights;
+
+        log_sum_weights - normalized_weighted_log_sum
+    }
+
     fn update_entropy(&mut self, x: usize, y: usize) {
         let index = self.grid.xy_to_index(x, y);
         let Some(indexes) = &self.index_order else {
             return;
         };
         let order = indexes[index];
-        let entropy = self.possibilities[index].len();
+        let entropy = match self.entropy_mode {
+            EntropyMode::PossibilityCount => self.possibilities[index].len(),
+            EntropyMode::Shannon => {
+                let weight_map = self
+                    .tile_distribution
+                    .as_ref()
+                    .unwrap_or(&self.tile_probability);
+                Self::shannon_entropy(
+                    self.possibilities[index]
+                        .iter()
+                        .map(|t| {
+                            *weight_map
+                                .get(t)
+                                .unwrap_or_else(|| panic!("failed to get weight for tile {t:?}"))
+                        })
+                        .collect::<Vec<_>>()
+                        .as_slice(),
+                ) as usize
+            }
+        };
         self.entropy_queue.push(Reverse((entropy, order, x, y)));
     }
 
