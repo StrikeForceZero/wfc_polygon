@@ -110,10 +110,25 @@ pub struct StepResult<T> {
     pub unsets: Option<HashSet<(usize, usize)>>,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq)]
+#[derive(Debug, Default, Copy, Clone, PartialEq)]
+pub enum PriorityMode {
+    #[default]
+    UniformRandom,
+    XY,
+}
+
+#[derive(Debug, Default, Copy, Clone, PartialEq)]
 pub enum EntropyMode {
+    #[default]
     PossibilityCount,
     Shannon,
+}
+
+#[derive(Debug, Default, Clone, PartialEq)]
+pub struct WaveFunctionCollapseOptions {
+    wrap_mode: Option<WrapMode>,
+    priority_mode: PriorityMode,
+    entropy_mode: EntropyMode,
 }
 
 #[derive(Clone)]
@@ -122,8 +137,8 @@ where
     GT: ?Sized + GridType<T>,
     T: Tile<T>,
 {
+    options: WaveFunctionCollapseOptions,
     grid: Grid<GT, T>,
-    wrap_mode: Option<WrapMode>,
     possibilities: Vec<HashSet<T>>,
     compatibility: CompatibilityMap<GT, T>,
     propagation_queue: VecDeque<(usize, usize)>,
@@ -132,8 +147,6 @@ where
     tile_distribution: Option<HashMap<T, f64>>,
     tile_probability: HashMap<T, f64>,
     index_order: Option<Vec<usize>>,
-    uniform_mode: bool,
-    entropy_mode: EntropyMode,
 }
 
 impl<GT, T> WaveFunctionCollapse<GT, T>
@@ -142,19 +155,19 @@ where
     T: Tile<T>,
     <<GT as GridType<T>>::SideType as TryFrom<Side>>::Error: Debug,
 {
-    pub fn new(grid: Grid<GT, T>, wrap_mode: Option<WrapMode>) -> Self {
+    pub fn new(grid: Grid<GT, T>, options: WaveFunctionCollapseOptions) -> Self {
         let compatibility = CompatibilityMap::new();
-        Self::new_with_compatibility(grid, compatibility, wrap_mode)
+        Self::new_with_compatibility(grid, compatibility, options)
     }
     pub fn new_with_compatibility(
         grid: Grid<GT, T>,
         compatibility: CompatibilityMap<GT, T>,
-        wrap_mode: Option<WrapMode>,
+        options: WaveFunctionCollapseOptions,
     ) -> Self {
         let width = grid.width();
         let height = grid.height();
 
-        if let Some(wrap_mode) = wrap_mode {
+        if let Some(wrap_mode) = options.wrap_mode {
             if width % 2 != 0 && grid.polygon().into() == Polygon::Hexagon(HexagonType::FlatTop) {
                 if matches!(wrap_mode, WrapMode::X | WrapMode::Both) {
                     panic!("flat top hexagon with {wrap_mode:?} does support odd size grids");
@@ -184,8 +197,8 @@ where
         }
 
         Self {
+            options,
             grid,
-            wrap_mode,
             possibilities,
             compatibility,
             propagation_queue,
@@ -194,8 +207,6 @@ where
             tile_distribution: T::distribution(),
             tile_probability: T::probability(),
             index_order: None,
-            uniform_mode: true,
-            entropy_mode: EntropyMode::PossibilityCount,
         }
     }
 
@@ -218,7 +229,7 @@ where
         *self = Self::new_with_compatibility(
             Grid::new(self.grid.polygon(), self.grid.width(), self.grid().height()),
             self.compatibility.clone(),
-            self.wrap_mode,
+            self.options.clone(),
         )
     }
 
@@ -229,7 +240,7 @@ where
     fn refresh_constraints(&mut self, index: usize) {
         self.possibilities[index] = self.tile_all.clone();
         let (x, y) = self.grid.index_to_xy(index);
-        for (side, nix) in self.grid.neighbor_indexes(x, y, self.wrap_mode) {
+        for (side, nix) in self.grid.neighbor_indexes(x, y, self.options.wrap_mode) {
             let Some(nix) = nix else {
                 continue;
             };
@@ -245,7 +256,9 @@ where
 
     fn propagate_constraints(&mut self) {
         while let Some((x, y)) = self.propagation_queue.pop_front() {
-            for (side, neighbor_index_opt) in self.grid.neighbor_indexes(x, y, self.wrap_mode) {
+            for (side, neighbor_index_opt) in
+                self.grid.neighbor_indexes(x, y, self.options.wrap_mode)
+            {
                 if let Some(neighbor_index) = neighbor_index_opt {
                     let old_len = self.possibilities[neighbor_index].len();
                     let possibilities = &mut self.possibilities[neighbor_index];
@@ -290,7 +303,7 @@ where
             panic!("index_order not initialized")
         };
         let order = indexes[index];
-        let entropy = match self.entropy_mode {
+        let entropy = match self.options.entropy_mode {
             EntropyMode::PossibilityCount => self.possibilities[index].len(),
             EntropyMode::Shannon => {
                 let weight_map = self
@@ -432,7 +445,7 @@ where
                 }
                 State::PatchSurroundings => {
                     let mut unsets = HashSet::new();
-                    for (_, nix) in self.grid.neighbor_indexes(x, y, self.wrap_mode) {
+                    for (_, nix) in self.grid.neighbor_indexes(x, y, self.options.wrap_mode) {
                         let Some(nix) = nix else {
                             continue;
                         };
@@ -446,7 +459,7 @@ where
                         self.refresh_constraints(nix);
                         self.update_entropy_by_index(nix);
                         let (x, y) = self.grid.index_to_xy(nix);
-                        for (_, nix) in self.grid.neighbor_indexes(x, y, self.wrap_mode) {
+                        for (_, nix) in self.grid.neighbor_indexes(x, y, self.options.wrap_mode) {
                             let Some(nix) = nix else {
                                 continue;
                             };
@@ -499,7 +512,7 @@ where
             };
             self.possibilities[ix] = HashSet::from([tile]);
             let (x, y) = self.grid.index_to_xy(ix);
-            for (side, nix) in self.grid.neighbor_indexes(x, y, self.wrap_mode) {
+            for (side, nix) in self.grid.neighbor_indexes(x, y, self.options.wrap_mode) {
                 let Some(nix) = nix else {
                     continue;
                 };
@@ -513,7 +526,7 @@ where
 
         if self.index_order.is_none() {
             let mut indexes = (0..self.grid().size()).collect::<Vec<_>>();
-            if self.uniform_mode {
+            if matches!(self.options.priority_mode, PriorityMode::UniformRandom) {
                 indexes.shuffle(rng);
             }
             self.index_order = Some(indexes);
@@ -617,7 +630,7 @@ where
                 }
                 continue;
             };
-            for (side, nix) in self.grid.neighbor_indexes(x, y, self.wrap_mode) {
+            for (side, nix) in self.grid.neighbor_indexes(x, y, self.options.wrap_mode) {
                 let Some(nix) = nix else {
                     continue;
                 };
@@ -648,7 +661,7 @@ where
                 }
             };
             let (x, y) = self.grid.index_to_xy(ix);
-            for (side, nix) in self.grid.neighbor_indexes(x, y, self.wrap_mode) {
+            for (side, nix) in self.grid.neighbor_indexes(x, y, self.options.wrap_mode) {
                 let Some(nix) = nix else {
                     continue;
                 };

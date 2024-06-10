@@ -442,7 +442,7 @@ where
 mod tests {
     use crate::compatibility_map::CompatibilityMap;
     use crate::TileInstance;
-    use crate::wfc::WaveFunctionCollapse;
+    use crate::wfc::{WaveFunctionCollapse, WaveFunctionCollapseOptions};
 
     use super::*;
 
@@ -498,7 +498,7 @@ mod tests {
         let mut wfc = WaveFunctionCollapse::new_with_compatibility(
             SquareGrid::new(10, 10),
             compatibility,
-            None,
+            WaveFunctionCollapseOptions::default(),
         );
         let max_retries = 10;
 
@@ -560,7 +560,7 @@ mod tests {
         let mut wfc = WaveFunctionCollapse::new_with_compatibility(
             SquareGrid::new(2, 1),
             compatibility,
-            None,
+            WaveFunctionCollapseOptions::default(),
         );
 
         // don't allow empty cells

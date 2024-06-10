@@ -16,7 +16,7 @@ use rand::rngs::mock::StepRng;
 
 use wfc_polygon::grid::{FlatTopHexGrid, GridType};
 use wfc_polygon::Tile;
-use wfc_polygon::wfc::{StepResult, WaveFunctionCollapse};
+use wfc_polygon::wfc::{StepResult, WaveFunctionCollapse, WaveFunctionCollapseOptions};
 
 use crate::color_wrapper::ColorWrapper;
 use crate::config::{
@@ -202,7 +202,7 @@ pub fn gen_map(
                 resources.grid_size.0.y as usize,
             ),
             compatibility_map.clone(),
-            resources.wrap_mode.0,
+            WaveFunctionCollapseOptions::default(),
         );
 
         if matches!(
