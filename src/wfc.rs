@@ -219,7 +219,7 @@ where
     }
 
     fn refresh_constraints(&mut self, index: usize) {
-        self.possibilities[index] = T::all().into_iter().collect();
+        self.possibilities[index] = self.tile_all.clone();
         let (x, y) = self.grid.index_to_xy(index);
         for (side, nix) in self.grid.neighbor_indexes(x, y, self.wrap_mode) {
             let Some(nix) = nix else {
