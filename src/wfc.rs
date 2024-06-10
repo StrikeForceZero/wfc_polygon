@@ -287,7 +287,7 @@ where
     fn update_entropy(&mut self, x: usize, y: usize) {
         let index = self.grid.xy_to_index(x, y);
         let Some(indexes) = &self.index_order else {
-            return;
+            panic!("index_order not initialized")
         };
         let order = indexes[index];
         let entropy = match self.entropy_mode {
@@ -323,20 +323,6 @@ where
         enum State<T> {
             SetAny(Vec<T>),
             PatchSurroundings,
-        }
-        // TODO: this would be better in the initialize fn or the new fn
-        //  but we need access to the provided rng to keep it deterministic
-        if self.index_order.is_none() {
-            let mut indexes = (0..self.grid().size()).collect::<Vec<_>>();
-            if self.uniform_mode {
-                indexes.shuffle(rng);
-            }
-            self.index_order = Some(indexes);
-            for y in 0..self.grid.height() {
-                for x in 0..self.grid.width() {
-                    self.update_entropy(x, y);
-                }
-            }
         }
         while let Some(Reverse((_, _, x, y))) = self.entropy_queue.pop() {
             let index = self.grid.xy_to_index(x, y);
@@ -504,7 +490,7 @@ where
         self._step(rng)
     }
 
-    pub fn initialize_collapse(&mut self) {
+    pub fn _initialize_collapse(&mut self, rng: &mut impl Rng) {
         debug!("checking external or previous collapse changes");
         // Re-load possibilities each iteration to account for external changes
         for (ix, cell) in self.grid.cells().iter().enumerate() {
@@ -521,6 +507,19 @@ where
                     self.possibilities[nix].retain(|p| compatible.contains(p));
                 } else {
                     unreachable!("bad compatibility map?")
+                }
+            }
+        }
+
+        if self.index_order.is_none() {
+            let mut indexes = (0..self.grid().size()).collect::<Vec<_>>();
+            if self.uniform_mode {
+                indexes.shuffle(rng);
+            }
+            self.index_order = Some(indexes);
+            for y in 0..self.grid.height() {
+                for x in 0..self.grid.width() {
+                    self.update_entropy(x, y);
                 }
             }
         }
@@ -544,6 +543,14 @@ where
         debug!("propagating");
         // Propagate constraints for initially determined tiles
         self.propagate_constraints();
+    }
+
+    pub fn initialize_collapse(&mut self) {
+        self._initialize_collapse(&mut thread_rng())
+    }
+
+    pub fn initialize_collapse_with_custom_rng(&mut self, rng: &mut impl Rng) {
+        self._initialize_collapse(rng)
     }
 
     fn _perform_all_steps(&mut self, rng: &mut impl Rng) {

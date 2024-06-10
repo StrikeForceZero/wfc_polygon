@@ -209,7 +209,7 @@ pub fn gen_map(
             resources.wfc_animate.0,
             WfcAnimateMode::SingleAuto | WfcAnimateMode::SingleManual
         ) {
-            wfc.initialize_collapse();
+            wfc.initialize_collapse_with_custom_rng(rng);
             local_state.wfc = Some(wfc);
             if resources.wfc_animate.0 == WfcAnimateMode::SingleAuto {
                 events.wfc_step.send(WfcStep);
