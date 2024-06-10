@@ -155,11 +155,7 @@ where
     T: Tile<T>,
     <<GT as GridType<T>>::SideType as TryFrom<Side>>::Error: Debug,
 {
-    pub fn new(grid: Grid<GT, T>, options: WaveFunctionCollapseOptions) -> Self {
-        let compatibility = CompatibilityMap::new();
-        Self::new_with_compatibility(grid, compatibility, options)
-    }
-    pub fn new_with_compatibility(
+    pub fn new(
         grid: Grid<GT, T>,
         compatibility: CompatibilityMap<GT, T>,
         options: WaveFunctionCollapseOptions,
@@ -226,7 +222,7 @@ where
     where
         GT: Clone,
     {
-        *self = Self::new_with_compatibility(
+        *self = Self::new(
             Grid::new(self.grid.polygon(), self.grid.width(), self.grid().height()),
             self.compatibility.clone(),
             self.options.clone(),
@@ -741,7 +737,7 @@ mod tests {
             }
         }
 
-        let mut wfc = WaveFunctionCollapse::new_with_compatibility(
+        let mut wfc = WaveFunctionCollapse::new(
             SquareGrid::new(10, 10),
             compatibility,
             WaveFunctionCollapseOptions::default(),
@@ -803,7 +799,7 @@ mod tests {
             }
         }
 
-        let mut wfc = WaveFunctionCollapse::new_with_compatibility(
+        let mut wfc = WaveFunctionCollapse::new(
             SquareGrid::new(2, 1),
             compatibility,
             WaveFunctionCollapseOptions::default(),

@@ -196,7 +196,7 @@ pub fn gen_map(
             .get_or_create(*HEX_MODE.read().expect("failed to read HEX_MODE"))
             .get_compatibility_map();
         debug!("initializing wfc");
-        let mut wfc = WaveFunctionCollapse::new_with_compatibility(
+        let mut wfc = WaveFunctionCollapse::new(
             FlatTopHexGrid::new(
                 resources.grid_size.0.x as usize,
                 resources.grid_size.0.y as usize,
