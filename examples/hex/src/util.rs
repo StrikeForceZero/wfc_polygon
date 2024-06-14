@@ -1,3 +1,7 @@
+use rand::{Rng, SeedableRng};
+use rand::prelude::StdRng;
+use rand::rngs::mock::StepRng;
+
 pub trait IsSomeAndSame {
     fn is_some_and_same(&self, other: &Self) -> bool;
 }
@@ -34,4 +38,8 @@ pub mod tracing {
             tracing::trace!("Trace enabled");
         })
     }
+}
+
+pub fn create_custom_rng(seed: u64) -> StdRng {
+    StdRng::from_rng(StepRng::new(seed, 1)).expect("failed to create rng")
 }

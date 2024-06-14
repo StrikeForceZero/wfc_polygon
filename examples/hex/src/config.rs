@@ -10,18 +10,14 @@ use wfc_polygon::wfc::WrapMode;
 
 use crate::input::InputMap;
 use crate::resource::CustomRng;
+use crate::util::create_custom_rng;
 
 pub struct SubPlugin;
 
 impl Plugin for SubPlugin {
     fn build(&self, app: &mut App) {
         let (custom_seed, custom_rng) = if let Some(initial_seed) = INITIAL_SEED {
-            (
-                Some(initial_seed),
-                Some(
-                    StdRng::from_rng(StepRng::new(initial_seed, 1)).expect("failed to create rng"),
-                ),
-            )
+            (Some(initial_seed), Some(create_custom_rng(initial_seed)))
         } else {
             (None, None)
         };

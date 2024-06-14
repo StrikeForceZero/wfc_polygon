@@ -577,7 +577,7 @@ where
     }
 
     fn _collapse(&mut self, rng: &mut impl Rng) -> bool {
-        self.initialize_collapse();
+        self.initialize_collapse_with_custom_rng(rng);
 
         self._perform_all_steps(rng);
 

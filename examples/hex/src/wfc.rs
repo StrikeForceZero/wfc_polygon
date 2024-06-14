@@ -16,7 +16,9 @@ use rand::rngs::mock::StepRng;
 
 use wfc_polygon::grid::{FlatTopHexGrid, GridType};
 use wfc_polygon::Tile;
-use wfc_polygon::wfc::{StepResult, WaveFunctionCollapse, WaveFunctionCollapseOptions};
+use wfc_polygon::wfc::{
+    PriorityMode, StepResult, WaveFunctionCollapse, WaveFunctionCollapseOptions,
+};
 
 use crate::color_wrapper::ColorWrapper;
 use crate::config::{
@@ -27,6 +29,7 @@ use crate::hex::HexCompatabilityMap;
 use crate::hex::map::FlatTopHexagonalSegmentIdMap;
 use crate::hex::tile_id::HexTileId;
 use crate::resource::{ColorMaterialMap, CustomRng};
+use crate::util::create_custom_rng;
 use crate::wfc;
 
 pub struct SubPlugin;
@@ -96,6 +99,7 @@ struct GenMapEvents<'w> {
 struct GenMapResources<'w> {
     grid_size: Res<'w, GridSize>,
     wrap_mode: Res<'w, WfcWrapMode>,
+    wfc_seed: ResMut<'w, WfcSeed>,
     custom_rng: ResMut<'w, CustomRng>,
     possibility_cache: ResMut<'w, GridCellDataCache<HexTileId>>,
     hex_compatability_map: ResMut<'w, HexCompatabilityMap>,
@@ -109,6 +113,13 @@ pub fn gen_map(
     mut resources: GenMapResources,
     mut events: GenMapEvents,
 ) {
+    if let Some(seed) = resources.wfc_seed.0 {
+        if local_state.wfc.is_none() {
+            // revert seed to initial value
+            resources.custom_rng.0 = Some(create_custom_rng(seed));
+            println!("reset seed {seed}");
+        }
+    }
     let rng = if let Some(custom_rng) = resources.custom_rng.0.as_mut() {
         custom_rng
     } else {
