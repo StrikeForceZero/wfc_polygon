@@ -126,9 +126,9 @@ pub enum EntropyMode {
 
 #[derive(Debug, Default, Clone, PartialEq)]
 pub struct WaveFunctionCollapseOptions {
-    wrap_mode: Option<WrapMode>,
-    priority_mode: PriorityMode,
-    entropy_mode: EntropyMode,
+    pub wrap_mode: Option<WrapMode>,
+    pub priority_mode: PriorityMode,
+    pub entropy_mode: EntropyMode,
 }
 
 #[derive(Clone)]
