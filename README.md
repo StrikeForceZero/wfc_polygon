@@ -10,6 +10,12 @@ available given the current state.
 
 **NOTE: as the current version is `0.0.0` as it's still being iterated on and breaking changes are common.**
 
+## Videos and Screenshots
+
+[![Hex Full](https://github.com/StrikeForceZero/wfc_polygon/assets/983413/a8f188b2-2566-4883-9445-2403e0c8bc5b)](https://github.com/StrikeForceZero/wfc_polygon/assets/983413/c6588dc9-5b3b-4f7e-909f-5967f205f50b)
+[![Hex Segments](https://github.com/StrikeForceZero/wfc_polygon/assets/983413/a8509148-82df-4739-a1ad-397cc076dd87)](https://github.com/StrikeForceZero/wfc_polygon/assets/983413/e2cce953-0381-4b25-aac4-64e8b9097eb4)
+![Large grid example](https://github.com/StrikeForceZero/wfc_polygon/assets/983413/2157b0ca-de93-4b3d-885e-de87aab1f43d)
+
 ## Equilateral Polygons Supported
 
 | Polygon            | Supported |
